@@ -591,6 +591,11 @@ fun ClickDetail(
         SettingsStatusRow("清空常用", "") {
             ClickController.clearFavorites()
         }
+        SettingsStatusRow("複製座標", "") {
+            val p = ClickController.points.lastOrNull() ?: return@SettingsStatusRow
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("point", "${p.first.toInt()},${p.second.toInt()}"))
+        }
         SettingsStatusRow("複製最後點", "") {
             ClickController.duplicateLastPoint()
         }
