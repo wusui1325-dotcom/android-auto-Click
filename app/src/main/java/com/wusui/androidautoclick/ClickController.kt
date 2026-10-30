@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var pingPong: Boolean = false // 多點來回
+    var randomPoint: Boolean = false // 多點隨機選
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -141,7 +141,8 @@ object ClickController {
                 }
                 val base = if (mode == "多點" && points.size > 1) points else listOf(points.first())
                 val usePoints = if (reversePoints) base.reversed() else base
-                var (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
+                val idx = if (randomPoint && usePoints.size > 1) kotlin.random.Random.nextInt(usePoints.size) else pointIndex % usePoints.size
+                var (x, y) = usePoints[idx]
                 x = x * scale + offsetX
                 y = y * scale + offsetY
                 if (mirrorX) {
