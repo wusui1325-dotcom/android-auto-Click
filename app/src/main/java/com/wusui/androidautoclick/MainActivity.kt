@@ -738,7 +738,7 @@ fun ClickDetail(
         if (ClickController.log.isEmpty()) {
             SettingsStatusRow("尚無記錄", "") {}
         } else {
-            ClickController.log.take(5).forEach { line ->
+            ClickController.log.take(3).forEach { line ->
                 SettingsStatusRow(line, "") {}
             }
             SettingsStatusRow("清空記錄", "") {
