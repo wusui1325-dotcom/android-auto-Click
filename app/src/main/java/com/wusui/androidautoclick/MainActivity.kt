@@ -453,9 +453,15 @@ fun SequenceDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "錄製") {
-        SettingsStatusRow("開始錄製", "") {}
-        SettingsStatusRow("停止並儲存", "") {}
-        SettingsStatusRow("清空目前", "") {}
+        SettingsStatusRow("開始錄製", if (SequenceRecorder.isRecording) "錄製中" else "") {
+            SequenceRecorder.start()
+        }
+        SettingsStatusRow("停止並儲存", "${SequenceRecorder.steps.size} 步") {
+            SequenceRecorder.stop()
+        }
+        SettingsStatusRow("清空目前", "") {
+            SequenceRecorder.clear()
+        }
     }
 
     Spacer(Modifier.height(8.dp))
