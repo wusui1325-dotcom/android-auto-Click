@@ -516,7 +516,7 @@ fun SequenceDetail() {
                     "wait" -> "等待 ${step.delayMs}ms"
                     else -> step.type
                 }
-                SettingsStatusRow("$i $label", "") {
+                SettingsStatusRow("$i $label", "刪") {
                     SequenceRecorder.removeAt(i)
                 }
             }

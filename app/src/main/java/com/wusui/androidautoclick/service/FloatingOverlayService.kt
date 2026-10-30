@@ -124,14 +124,19 @@ class FloatingOverlayService : Service() {
 
     private fun updateButtonText() {
         val button = (overlayView as? FrameLayout)?.getChildAt(0) as? TextView ?: return
-        button.text = if (ClickController.isRunning) {
-            val remain = ClickController.remainingDisplay.ifEmpty { "■" }
-            val pt = if (ClickController.points.size > 1) "P${ClickController.currentPointIndex + 1}" else ""
-            if (pt.isNotEmpty()) "$remain\n$pt" else remain
-        } else {
-            "▶"
+        button.text = when {
+            com.wusui.androidautoclick.SequenceRecorder.isRecording -> "●"
+            ClickController.isRunning -> {
+                val remain = ClickController.remainingDisplay.ifEmpty { "■" }
+                val pt = if (ClickController.points.size > 1) "P${ClickController.currentPointIndex + 1}" else ""
+                if (pt.isNotEmpty()) "$remain\n$pt" else remain
+            }
+            else -> "▶"
         }
     }
+
+    private var longPressHandler = Handler(Looper.getMainLooper())
+    private var longPressed = false
 
     private fun setupDrag(container: View, button: View, params: WindowManager.LayoutParams) {
         var initialX = 0
@@ -148,12 +153,28 @@ class FloatingOverlayService : Service() {
                     touchX = event.rawX
                     touchY = event.rawY
                     moved = false
+                    longPressed = false
+                    longPressHandler.postDelayed({
+                        if (!moved) {
+                            longPressed = true
+                            // 長按：切換錄製
+                            if (com.wusui.androidautoclick.SequenceRecorder.isRecording) {
+                                com.wusui.androidautoclick.SequenceRecorder.stop()
+                            } else {
+                                com.wusui.androidautoclick.SequenceRecorder.start()
+                            }
+                            updateButtonText()
+                        }
+                    }, 500)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (event.rawX - touchX).toInt()
                     val dy = (event.rawY - touchY).toInt()
-                    if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) moved = true
+                    if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) {
+                        moved = true
+                        longPressHandler.removeCallbacksAndMessages(null)
+                    }
                     params.x = initialX + dx
                     params.y = initialY + dy
                     try {
@@ -162,7 +183,8 @@ class FloatingOverlayService : Service() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!moved) button.performClick()
+                    longPressHandler.removeCallbacksAndMessages(null)
+                    if (!moved && !longPressed) button.performClick()
                     true
                 }
                 else -> false
