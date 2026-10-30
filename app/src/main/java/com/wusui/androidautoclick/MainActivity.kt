@@ -700,6 +700,9 @@ fun OverlayDetail(
         ToggleRow("顯示開始／停止", true) {}
         ToggleRow("顯示剩餘次數", showRemain) { onShowRemain(it) }
         ToggleRow("可拖曳", draggable) { onDraggable(it) }
+        ToggleRow("懸浮窗顯示座標", ClickController.showCoordsOnOverlay) {
+            ClickController.showCoordsOnOverlay = it
+        }
     }
 
     Spacer(Modifier.height(12.dp))
@@ -713,7 +716,7 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.8.0") {}
+        SettingsStatusRow("版本", "0.9.0") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
             SequenceRecorder.stopReplay()

@@ -130,7 +130,11 @@ class FloatingOverlayService : Service() {
             ClickController.isRunning -> {
                 val remain = ClickController.remainingDisplay.ifEmpty { "■" }
                 val pt = if (ClickController.points.size > 1) "P${ClickController.currentPointIndex + 1}" else ""
-                if (pt.isNotEmpty()) "$remain\n$pt" else remain
+                val coord = if (ClickController.showCoordsOnOverlay) {
+                    val p = ClickController.points.getOrNull(ClickController.currentPointIndex)
+                    if (p != null) "\n${p.first.toInt()},${p.second.toInt()}" else ""
+                } else ""
+                if (pt.isNotEmpty()) "$remain\n$pt$coord" else "$remain$coord"
             }
             else -> "▶"
         }
