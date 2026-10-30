@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.wusui.androidautoclick.R
+import com.wusui.androidautoclick.i18n.LocaleHelper
 import com.wusui.androidautoclick.ui.MainActivity
 
 /**
@@ -21,25 +23,36 @@ object ClickNotification {
     const val NOTIFY_ID = 1001
     const val OVERLAY_NOTIFY_ID = 1002
 
+    private fun s(context: Context, id: Int): String = LocaleHelper.str(context, id)
+
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         mgr.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "執行狀態", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "自動點擊執行狀態"
+            NotificationChannel(
+                CHANNEL_ID,
+                s(context, R.string.notif_channel_status),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = s(context, R.string.notif_channel_status_desc)
                 setShowBadge(false)
             }
         )
         mgr.createNotificationChannel(
-            NotificationChannel(CHANNEL_OVERLAY, "懸浮控制", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "懸浮窗保活通知"
+            NotificationChannel(
+                CHANNEL_OVERLAY,
+                s(context, R.string.notif_channel_overlay),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = s(context, R.string.notif_channel_overlay_desc)
                 setShowBadge(false)
             }
         )
     }
 
-    fun buildOverlayKeepAlive(context: Context, text: String = "懸浮控制運行中"): Notification {
+    fun buildOverlayKeepAlive(context: Context, text: String? = null): Notification {
         ensureChannel(context)
+        val body = text ?: s(context, R.string.notif_overlay_running)
         val launch = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -52,10 +65,10 @@ object ClickNotification {
         )
         return NotificationCompat.Builder(context, CHANNEL_OVERLAY)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("AutoClick")
-            .setContentText(text)
+            .setContentTitle(s(context, R.string.app_name))
+            .setContentText(body)
             .setContentIntent(launch)
-            .addAction(0, "停止", stop)
+            .addAction(0, s(context, R.string.action_stop), stop)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -85,10 +98,10 @@ object ClickNotification {
             )
             val n = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle("AutoClick 執行中")
+                .setContentTitle(s(context, R.string.notif_running_title))
                 .setContentText(text)
                 .setContentIntent(launch)
-                .addAction(0, "停止", stop)
+                .addAction(0, s(context, R.string.action_stop), stop)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)

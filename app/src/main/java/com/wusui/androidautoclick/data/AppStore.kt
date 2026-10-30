@@ -47,6 +47,10 @@ object AppStore {
     private val _barVertical = MutableStateFlow(false)
     val barVertical: StateFlow<Boolean> = _barVertical.asStateFlow()
 
+    /** App UI language tag: zh-Hant / zh-Hans / en */
+    private val _language = MutableStateFlow("zh-Hant")
+    val language: StateFlow<String> = _language.asStateFlow()
+
     fun init(context: Context) {
         appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
@@ -54,7 +58,26 @@ object AppStore {
         loadParams()
         _barVertical.value = prefs?.getBoolean("barVertical", false) ?: false
         _barSize.value = (prefs?.getInt("barSize", 1) ?: 1).coerceIn(0, 2)
+        val savedLang = prefs?.getString("appLanguage", null)
+        _language.value = if (!savedLang.isNullOrBlank()) savedLang else "zh-Hant"
     }
+
+    fun setLanguage(tag: String) {
+        val normalized = when {
+            tag.startsWith("zh-Hans", true) || tag.equals("zh-CN", true) -> "zh-Hans"
+            tag.startsWith("en", true) -> "en"
+            else -> "zh-Hant"
+        }
+        if (_language.value == normalized) {
+            // still re-apply in case system drifted
+            com.wusui.androidautoclick.i18n.LocaleHelper.apply(normalized)
+            return
+        }
+        _language.value = normalized
+        prefs?.edit()?.putString("appLanguage", normalized)?.apply()
+        com.wusui.androidautoclick.i18n.LocaleHelper.apply(normalized)
+    }
+
 
     fun setBarVertical(vertical: Boolean) {
         _barVertical.value = vertical

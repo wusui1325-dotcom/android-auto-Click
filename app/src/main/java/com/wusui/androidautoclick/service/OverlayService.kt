@@ -28,7 +28,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ServiceCompat
+import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
+import com.wusui.androidautoclick.i18n.LocaleHelper
 import com.wusui.androidautoclick.engine.ClickEngine
 import com.wusui.androidautoclick.engine.NodeKind
 import com.wusui.androidautoclick.engine.SessionType
@@ -106,13 +108,24 @@ class OverlayService : Service() {
             ) { _, _, _, _, _ -> }
                 .collect { markersDirty = true; rebuildBarIfNeeded() }
         }
+        scope?.launch {
+            var langReady = false
+            AppStore.language.collect {
+                if (!langReady) { langReady = true; return@collect }
+                ClickNotification.ensureChannel(this@OverlayService)
+                startFg()
+                lastBarKey = ""
+                rebuildBar(animated = true)
+                dismissPopup()
+            }
+        }
     }
 
     private fun startFg() {
         ServiceCompat.startForeground(
             this,
             ClickNotification.OVERLAY_NOTIFY_ID,
-            ClickNotification.buildOverlayKeepAlive(this, "AUTO-C 控制列"),
+            ClickNotification.buildOverlayKeepAlive(this, s(R.string.notif_overlay_bar)),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         )
     }
@@ -190,6 +203,10 @@ class OverlayService : Service() {
         }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    // ── i18n ───────────────────────────────────────────────────
+    private fun s(id: Int): String = LocaleHelper.str(this, id)
+    private fun s(id: Int, vararg args: Any): String = LocaleHelper.str(this, id, *args)
 
     // ── Control bar ────────────────────────────────────────────
 
@@ -324,7 +341,7 @@ class OverlayService : Service() {
         val type = AppStore.sessionType.value
         iconBtn(
             if (st.running) FlatIconView.Kind.STOP else FlatIconView.Kind.PLAY,
-            if (st.running) "停止" else "開始"
+            if (st.running) s(R.string.action_stop) else s(R.string.action_start)
         ) {
             ClickEngine.toggle(fromOverlay = true)
             rebuildBar(animated = false)
@@ -333,55 +350,55 @@ class OverlayService : Service() {
         if (expanded) {
             when (type) {
                 SessionType.MULTI -> {
-                    iconBtn(FlatIconView.Kind.PLUS, "加點") {
+                    iconBtn(FlatIconView.Kind.PLUS, s(R.string.action_add_point)) {
                         AppStore.addClickPoint(sw / 2f, sh / 2f)
                         markersDirty = true
                     }
-                    iconBtn(FlatIconView.Kind.DRAG, "拖拽") {
+                    iconBtn(FlatIconView.Kind.DRAG, s(R.string.action_drag)) {
                         AppStore.addDragGroup(sw * 0.35f, sh / 2f, sw * 0.65f, sh / 2f)
                         markersDirty = true
                     }
                     iconBtn(
                         FlatIconView.Kind.DELETE,
-                        if (AppStore.deleteMode.value) "選刪" else "刪除",
+                        if (AppStore.deleteMode.value) s(R.string.action_delete_pick) else s(R.string.action_delete),
                         danger = AppStore.deleteMode.value
                     ) {
                         AppStore.setDeleteMode(!AppStore.deleteMode.value)
-                        toast(if (AppStore.deleteMode.value) "點一個觸控點／拖拽組以刪除" else "已取消刪除")
+                        toast(if (AppStore.deleteMode.value) s(R.string.toast_delete_hint) else s(R.string.toast_delete_cancel))
                         rebuildBar(animated = false)
                     }
                 }
                 SessionType.RECORD -> {
                     iconBtn(
                         if (st.recording) FlatIconView.Kind.RECORD_ON else FlatIconView.Kind.RECORD,
-                        if (st.recording) "停錄" else "錄製"
+                        if (st.recording) s(R.string.action_record_stop) else s(R.string.action_record)
                     ) {
                         ClickEngine.toggleRecording()
                         rebuildBar(animated = false)
                         markersDirty = true
                     }
-                    iconBtn(FlatIconView.Kind.PLUS, "加點") {
+                    iconBtn(FlatIconView.Kind.PLUS, s(R.string.action_add_point)) {
                         AppStore.addClickPoint(sw / 2f, sh / 2f)
                         markersDirty = true
                     }
                 }
                 SessionType.SINGLE -> { }
             }
-            iconBtn(FlatIconView.Kind.SAVE, "保存") { showSaveScheme() }
-            iconBtn(FlatIconView.Kind.SCHEME, "方案") { showUseScheme() }
-            iconBtn(FlatIconView.Kind.PARAMS, "參數") { showParamsPopup() }
-            iconBtn(FlatIconView.Kind.COLLAPSE, "收起") {
+            iconBtn(FlatIconView.Kind.SAVE, s(R.string.action_save)) { showSaveScheme() }
+            iconBtn(FlatIconView.Kind.SCHEME, s(R.string.action_scheme)) { showUseScheme() }
+            iconBtn(FlatIconView.Kind.PARAMS, s(R.string.action_params)) { showParamsPopup() }
+            iconBtn(FlatIconView.Kind.COLLAPSE, s(R.string.action_collapse)) {
                 expanded = false
                 rebuildBar(animated = true)
             }
         } else {
-            iconBtn(FlatIconView.Kind.EXPAND, "展開") {
+            iconBtn(FlatIconView.Kind.EXPAND, s(R.string.action_expand)) {
                 expanded = true
                 rebuildBar(animated = true)
             }
         }
 
-        iconBtn(FlatIconView.Kind.CLOSE, "關閉", danger = true) { closeAll() }
+        iconBtn(FlatIconView.Kind.CLOSE, s(R.string.action_close), danger = true) { closeAll() }
 
         // Soft stagger: mid buttons start slightly transparent (expand feel)
         if (enterAnim && expanded && row.childCount > 2) {
@@ -750,7 +767,7 @@ class OverlayService : Service() {
         })
         card.build()
         card.addView(TextView(this).apply {
-            text = "關閉"
+            text = s(R.string.action_close)
             gravity = Gravity.CENTER
             setTextColor(Color.parseColor("#6E6E73"))
             setPadding(0, dp(14), 0, 0)
@@ -765,7 +782,7 @@ class OverlayService : Service() {
             windowManager.addView(card, lp)
             popupView = card
         } catch (_: Exception) {
-            toast("無法顯示浮窗：$title")
+            toast(s(R.string.toast_popup_fail, title))
         }
     }
 
@@ -799,25 +816,25 @@ class OverlayService : Service() {
         val ordered = AppStore.orderedNodes()
         val isLast = ordered.lastOrNull()?.id == live.id
         val intervalLabel = if (isLast) {
-            "手勢完成後再等(ms)＝下輪循環"
+            s(R.string.node_interval_cycle)
         } else {
-            "手勢完成後再等(ms)"
+            s(R.string.node_interval)
         }
-        showPanel("觸控點 ${live.order}（長按調整）") {
+        showPanel(s(R.string.node_popup_title, live.order)) {
             addView(TextView(this@OverlayService).apply {
-                text = "實際節奏≈按下時長+此間隔；手勢必須串行，1ms 做不到「每毫秒一點」"
+                text = s(R.string.node_rhythm_hint)
                 setTextColor(Color.parseColor("#6E6E73"))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
                 setPadding(0, 0, 0, dp(6))
             })
             val (r1, etInterval) = fieldRow(intervalLabel, live.intervalToNextMs.toString())
             addView(r1)
-            val (rTap, etTap) = fieldRow("點擊時長(ms,≥1)", live.tapDurationMs.toString())
+            val (rTap, etTap) = fieldRow(s(R.string.node_tap_duration), live.tapDurationMs.toString())
             if (live.kind == NodeKind.CLICK) addView(rTap)
-            val (r2, etClicks) = fieldRow("單次點擊次數", live.clickCount.toString())
+            val (r2, etClicks) = fieldRow(s(R.string.node_click_count), live.clickCount.toString())
             if (live.kind == NodeKind.CLICK) addView(r2)
             addView(TextView(this@OverlayService).apply {
-                text = "套用"
+                text = s(R.string.apply)
                 gravity = Gravity.CENTER
                 setTextColor(Color.parseColor("#1D1D1F"))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
@@ -838,7 +855,7 @@ class OverlayService : Service() {
                         )
                     }
                     dismissPopup()
-                    toast("已更新點 ${live.order}")
+                    toast(s(R.string.toast_node_updated, live.order))
                 }
             })
         }
@@ -846,35 +863,35 @@ class OverlayService : Service() {
 
     private fun showParamsPopup() {
         val p = AppStore.params.value
-        showPanel("參數調整") {
+        showPanel(s(R.string.params_title)) {
             val (r1, etCycles) = fieldRow(
-                "循環次數(空=無限)",
+                s(R.string.params_cycles),
                 if (p.cycleCount < 0) "" else p.cycleCount.toString()
             )
             addView(r1)
-            val (r2, etStop) = fieldRow("多久後停止(ms,0=無)", p.stopAfterMs.toString())
+            val (r2, etStop) = fieldRow(s(R.string.params_stop_after), p.stopAfterMs.toString())
             addView(r2)
-            val (r3, etTap) = fieldRow("全域預設點擊時長(ms)", p.tapDurationMs.toString())
+            val (r3, etTap) = fieldRow(s(R.string.params_global_tap), p.tapDurationMs.toString())
             addView(r3)
             addView(TextView(this@OverlayService).apply {
-                text = "速度說明：系統 dispatchGesture 必須串行等 onCompleted，無法並行。節奏≈按下時長+「手勢完成後再等」。舊版曾誤用 TapTimeout≈100ms 當按下下限並多加 40ms，已去掉。"
+                text = s(R.string.params_speed_hint)
                 setTextColor(Color.parseColor("#6E6E73"))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
                 setPadding(0, dp(4), 0, dp(8))
             })
             var jitter = p.jitter
             val jitterTv = TextView(this@OverlayService).apply {
-                text = if (jitter) "點擊抖動：開（防偵測）" else "點擊抖動：關"
+                text = if (jitter) s(R.string.jitter_on) else s(R.string.jitter_off)
                 setTextColor(Color.parseColor("#1D1D1F"))
                 setPadding(0, dp(10), 0, dp(10))
                 setOnClickListener {
                     jitter = !jitter
-                    text = if (jitter) "點擊抖動：開（防偵測）" else "點擊抖動：關"
+                    text = if (jitter) s(R.string.jitter_on) else s(R.string.jitter_off)
                 }
             }
             addView(jitterTv)
             addView(TextView(this@OverlayService).apply {
-                text = "套用"
+                text = s(R.string.apply)
                 gravity = Gravity.CENTER
                 setTextColor(Color.parseColor("#1D1D1F"))
                 typeface = Typeface.DEFAULT_BOLD
@@ -890,16 +907,16 @@ class OverlayService : Service() {
                         p.copy(cycleCount = cycles, stopAfterMs = stop, jitter = jitter, tapDurationMs = tap)
                     )
                     dismissPopup()
-                    toast("參數已套用（按下 ${tap}ms）")
+                    toast(s(R.string.toast_params_applied, tap))
                 }
             })
         }
     }
 
     private fun showSaveScheme() {
-        showPanel("保存方案") {
+        showPanel(s(R.string.save_scheme_title)) {
             val et = EditText(this@OverlayService).apply {
-                hint = "方案名稱"
+                hint = s(R.string.scheme_name_hint)
                 setText(AppStore.sessionType.value.label())
                 setTextColor(Color.parseColor("#1D1D1F"))
                 setHintTextColor(Color.parseColor("#8E8E93"))
@@ -908,7 +925,7 @@ class OverlayService : Service() {
             }
             addView(et)
             addView(TextView(this@OverlayService).apply {
-                text = "保存"
+                text = s(R.string.action_save)
                 gravity = Gravity.CENTER
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.parseColor("#1D1D1F"))
@@ -916,8 +933,8 @@ class OverlayService : Service() {
                 setOnClickListener {
                     val name = et.text.toString().trim()
                     if (AppStore.saveScheme(name)) {
-                        dismissPopup(); toast("已保存「$name」")
-                    } else toast("保存失敗（需有觸控點且名稱非空）")
+                        dismissPopup(); toast(s(R.string.toast_saved, name))
+                    } else toast(s(R.string.toast_save_fail))
                 }
             })
         }
@@ -926,13 +943,18 @@ class OverlayService : Service() {
     private fun showUseScheme() {
         val names = AppStore.schemes.value.keys.sorted()
         if (names.isEmpty()) {
-            toast("尚無已存方案"); return
+            toast(s(R.string.toast_no_schemes)); return
         }
-        showPanel("使用方案") {
+        showPanel(s(R.string.use_scheme_title)) {
             names.forEach { name ->
-                val s = AppStore.schemes.value[name]!!
+                val scheme = AppStore.schemes.value[name]!!
                 addView(TextView(this@OverlayService).apply {
-                    text = "$name  ·  ${s.type.label()} · ${s.nodes.size} 點"
+                    text = s(
+                        R.string.scheme_item,
+                        name,
+                        scheme.type.label(),
+                        scheme.nodes.size
+                    )
                     setTextColor(Color.parseColor("#1D1D1F"))
                     setPadding(0, dp(10), 0, dp(10))
                     setOnClickListener {
@@ -940,7 +962,7 @@ class OverlayService : Service() {
                         dismissPopup()
                         markersDirty = true
                         rebuildBar()
-                        toast("已載入「$name」")
+                        toast(s(R.string.toast_loaded, name))
                     }
                 })
             }

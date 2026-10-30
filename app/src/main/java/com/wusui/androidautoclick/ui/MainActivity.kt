@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -35,8 +36,11 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.wusui.androidautoclick.BuildConfig
+import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
 import com.wusui.androidautoclick.engine.SessionType
+import com.wusui.androidautoclick.i18n.AppLang
 import com.wusui.androidautoclick.service.OverlayService
 import com.wusui.androidautoclick.service.PermissionHelper
 import com.wusui.androidautoclick.ui.components.SectionLabel
@@ -75,7 +79,9 @@ private fun HomeScreen() {
     var pickType by remember { mutableStateOf(false) }
     val barVertical by AppStore.barVertical.collectAsState()
     val barSize by AppStore.barSize.collectAsState()
+    val language by AppStore.language.collectAsState()
     val ready = a11y && overlay
+    val currentLang = AppLang.fromTag(language)
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -105,41 +111,65 @@ private fun HomeScreen() {
             letterSpacing = (-0.02).em
         )
         Spacer(Modifier.height(4.dp))
-        Text("3.0.5 · 懸浮控制", color = AppColors.secondary(), fontSize = 12.sp)
+        Text(
+            stringResource(R.string.version_line, BuildConfig.VERSION_NAME),
+            color = AppColors.secondary(),
+            fontSize = 12.sp
+        )
         Spacer(Modifier.height(20.dp))
 
-        SectionLabel("權限")
+        SectionLabel(stringResource(R.string.section_permissions))
         SettingsCard {
             SettingsRow(
-                title = "無障礙服務",
-                subtitle = if (a11y) "已開啟" else "設定 → 無障礙 → AutoClick",
-                trailing = if (a11y) "✓" else "去開啟",
+                title = stringResource(R.string.a11y_title),
+                subtitle = if (a11y) stringResource(R.string.a11y_on) else stringResource(R.string.a11y_off_hint),
+                trailing = if (a11y) "✓" else stringResource(R.string.go_enable),
                 showArrow = !a11y,
                 onClick = { if (!a11y) PermissionHelper.openAccessibilitySettings(context) }
             )
             SettingsRow(
-                title = "懸浮窗",
-                subtitle = if (overlay) "已開啟" else "顯示控制列與觸控點",
-                trailing = if (overlay) "✓" else "去開啟",
+                title = stringResource(R.string.overlay_title),
+                subtitle = if (overlay) stringResource(R.string.overlay_on) else stringResource(R.string.overlay_off_hint),
+                trailing = if (overlay) "✓" else stringResource(R.string.go_enable),
                 showArrow = !overlay,
                 onClick = { if (!overlay) PermissionHelper.openOverlaySettings(context) }
             )
         }
         Spacer(Modifier.height(16.dp))
 
-        SectionLabel("控制列")
+        SectionLabel(stringResource(R.string.section_language))
+        SettingsCard {
+            AppLang.entries.forEach { lang ->
+                val selected = lang == currentLang
+                SettingsRow(
+                    title = stringResource(lang.labelRes()),
+                    trailing = if (selected) "✓" else "",
+                    showArrow = !selected,
+                    onClick = {
+                        if (!selected) AppStore.setLanguage(lang.tag)
+                    }
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+
+        SectionLabel(stringResource(R.string.section_control_bar))
         SettingsCard {
             SettingsRow(
-                title = "排列方向",
-                subtitle = if (barVertical) "目前：豎排" else "目前：橫排",
-                trailing = if (barVertical) "改橫排" else "改豎排",
+                title = stringResource(R.string.bar_orientation),
+                subtitle = if (barVertical) stringResource(R.string.bar_vertical_now) else stringResource(R.string.bar_horizontal_now),
+                trailing = if (barVertical) stringResource(R.string.bar_to_horizontal) else stringResource(R.string.bar_to_vertical),
                 showArrow = true,
                 onClick = { AppStore.setBarVertical(!barVertical) }
             )
-            val sizeLabel = when (barSize) { 0 -> "小"; 2 -> "大"; else -> "中" }
+            val sizeLabel = when (barSize) {
+                0 -> stringResource(R.string.size_s)
+                2 -> stringResource(R.string.size_l)
+                else -> stringResource(R.string.size_m)
+            }
             SettingsRow(
-                title = "控制列大小",
-                subtitle = "目前：$sizeLabel（點擊循環：小→中→大）",
+                title = stringResource(R.string.bar_size),
+                subtitle = stringResource(R.string.bar_size_hint, sizeLabel),
                 trailing = sizeLabel,
                 showArrow = true,
                 onClick = { AppStore.setBarSize((barSize + 1) % 3) }
@@ -147,13 +177,13 @@ private fun HomeScreen() {
         }
         Spacer(Modifier.height(16.dp))
 
-        SectionLabel("開始")
+        SectionLabel(stringResource(R.string.section_start))
         SettingsCard {
             if (OverlayService.isRunning) {
                 SettingsRow(
-                    title = "控制列運行中",
-                    subtitle = "可回桌面繼續操作；或在此關閉",
-                    trailing = "關閉",
+                    title = stringResource(R.string.bar_running_title),
+                    subtitle = stringResource(R.string.bar_running_sub),
+                    trailing = stringResource(R.string.close),
                     showArrow = true,
                     onClick = {
                         context.startService(
@@ -163,9 +193,9 @@ private fun HomeScreen() {
                 )
             } else {
                 SettingsRow(
-                    title = "開始 AUTO-C",
-                    subtitle = if (ready) "選擇單點／多點／錄製" else "請先開權限",
-                    trailing = "開始",
+                    title = stringResource(R.string.start_autoc_title),
+                    subtitle = if (ready) stringResource(R.string.start_ready_sub) else stringResource(R.string.start_need_perm),
+                    trailing = stringResource(R.string.start),
                     showArrow = true,
                     onClick = {
                         if (!ready) return@SettingsRow
@@ -177,15 +207,15 @@ private fun HomeScreen() {
 
         if (pickType && ready && !OverlayService.isRunning) {
             Spacer(Modifier.height(12.dp))
-            SectionLabel("開始類型")
+            SectionLabel(stringResource(R.string.section_start_type))
             SettingsCard {
                 SessionType.entries.forEach { type ->
                     SettingsRow(
-                        title = type.label(),
+                        title = stringResource(type.labelRes()),
                         subtitle = when (type) {
-                            SessionType.SINGLE -> "一個可拖觸控點"
-                            SessionType.MULTI -> "多點＋拖拽組"
-                            SessionType.RECORD -> "錄製點擊（自繪畫面需手動加點）"
+                            SessionType.SINGLE -> stringResource(R.string.session_single_sub)
+                            SessionType.MULTI -> stringResource(R.string.session_multi_sub)
+                            SessionType.RECORD -> stringResource(R.string.session_record_sub)
                         },
                         showArrow = true,
                         onClick = {
@@ -197,19 +227,33 @@ private fun HomeScreen() {
                     )
                 }
                 SettingsRow(
-                    title = "取消",
+                    title = stringResource(R.string.cancel),
                     onClick = { pickType = false }
                 )
             }
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionLabel("說明")
+        SectionLabel(stringResource(R.string.section_help))
         SettingsCard {
             SettingsRow(
-                title = "操作概要",
-                subtitle = "控制列黑白平面圖示，可調橫豎／大小、以中心拖動（收起亦可）。觸控點短按定位；長按調間隔／次數。末點間隔＝下一輪循環等待。"
+                title = stringResource(R.string.help_title),
+                subtitle = stringResource(R.string.help_body)
             )
         }
+
+        Spacer(Modifier.height(16.dp))
+        SectionLabel(stringResource(R.string.section_about))
+        SettingsCard {
+            SettingsRow(
+                title = stringResource(R.string.about_title),
+                subtitle = stringResource(
+                    R.string.about_body,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE
+                )
+            )
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }

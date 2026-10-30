@@ -5,10 +5,21 @@ import java.util.UUID
 enum class SessionType {
     SINGLE, MULTI, RECORD;
 
-    fun label(): String = when (this) {
-        SINGLE -> "單點"
-        MULTI -> "多點"
-        RECORD -> "錄製"
+    fun labelRes(): Int = when (this) {
+        SINGLE -> com.wusui.androidautoclick.R.string.session_single
+        MULTI -> com.wusui.androidautoclick.R.string.session_multi
+        RECORD -> com.wusui.androidautoclick.R.string.session_record
+    }
+
+    /** Localized label using persisted app language. */
+    fun label(): String {
+        val ctx = com.wusui.androidautoclick.data.AppStore.appContext
+            ?: return when (this) {
+                SINGLE -> "單點"
+                MULTI -> "多點"
+                RECORD -> "錄製"
+            }
+        return com.wusui.androidautoclick.i18n.LocaleHelper.str(ctx, labelRes())
     }
 }
 

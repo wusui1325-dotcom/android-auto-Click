@@ -3,7 +3,9 @@ package com.wusui.androidautoclick.engine
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
+import com.wusui.androidautoclick.i18n.LocaleHelper
 import com.wusui.androidautoclick.service.ClickAccessibilityService
 import com.wusui.androidautoclick.service.ClickNotification
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +18,16 @@ import kotlin.random.Random
  * Plays ordered TouchNodes in cycles. Gestures strictly serial via [GestureDispatcher].
  */
 object ClickEngine {
+
+    private fun msg(id: Int): String {
+        val ctx = AppStore.appContext ?: return ""
+        return LocaleHelper.str(ctx, id)
+    }
+
+    private fun msg(id: Int, vararg args: Any): String {
+        val ctx = AppStore.appContext ?: return ""
+        return LocaleHelper.str(ctx, id, *args)
+    }
 
     private val main = Handler(Looper.getMainLooper())
     private val dispatcher = GestureDispatcher()
@@ -38,17 +50,17 @@ object ClickEngine {
     fun start(fromOverlay: Boolean = false): Boolean {
         if (_status.value.running) return true
         if (_status.value.recording) {
-            setError("請先停止錄製")
+            setError(msg(R.string.err_stop_recording))
             return false
         }
         val service = ClickAccessibilityService.instance
         if (service == null) {
-            setError("請先開啟無障礙服務")
+            setError(msg(R.string.err_need_a11y))
             return false
         }
         val items = buildPlayList()
         if (items.isEmpty()) {
-            setError("還沒有觸控點／拖拽組")
+            setError(msg(R.string.err_no_points))
             return false
         }
         generation++
@@ -58,8 +70,8 @@ object ClickEngine {
         consecutiveFails = 0
         startElapsed = SystemClock.elapsedRealtime()
         dispatcher.reset()
-        _status.value = EngineStatus(running = true, message = "執行中", lastError = "")
-        AppStore.appContext?.let { ClickNotification.showRunning(it, "執行中") }
+        _status.value = EngineStatus(running = true, message = msg(R.string.status_running), lastError = "")
+        AppStore.appContext?.let { ClickNotification.showRunning(it, msg(R.string.status_running)) }
         val arm = if (fromOverlay) 160L else 0L
         if (arm > 0) main.postDelayed({ if (gen == generation) tick(gen) }, arm)
         else tick(gen)
@@ -73,7 +85,7 @@ object ClickEngine {
         main.removeCallbacksAndMessages(null)
         consecutiveFails = 0
         _status.update {
-            it.copy(running = false, message = if (was) "已停止" else it.message)
+            it.copy(running = false, message = if (was) msg(R.string.status_stopped) else it.message)
         }
         AppStore.appContext?.let { ClickNotification.cancel(it) }
     }
@@ -91,21 +103,21 @@ object ClickEngine {
 
     fun startRecording(clear: Boolean = false): Boolean {
         if (_status.value.running) {
-            setError("請先停止執行")
+            setError(msg(R.string.err_stop_running))
             return false
         }
         if (ClickAccessibilityService.instance == null) {
-            setError("請先開啟無障礙服務")
+            setError(msg(R.string.err_need_a11y))
             return false
         }
         if (clear) AppStore.clearNodes()
         lastRecordStamp = SystemClock.elapsedRealtime()
-        _status.update { it.copy(recording = true, lastError = "", message = "錄製中") }
+        _status.update { it.copy(recording = true, lastError = "", message = msg(R.string.status_recording)) }
         return true
     }
 
     fun stopRecording() {
-        _status.update { it.copy(recording = false, message = "錄製結束") }
+        _status.update { it.copy(recording = false, message = msg(R.string.status_record_done)) }
     }
 
     fun toggleRecording(): Boolean {
@@ -148,7 +160,7 @@ object ClickEngine {
         if (gen != generation || !_status.value.running) return
         val service = ClickAccessibilityService.instance
         if (service == null) {
-            setError("無障礙服務已斷開"); stop(); return
+            setError(msg(R.string.err_a11y_disconnected)); stop(); return
         }
         val params = AppStore.params.value
         if (params.stopAfterMs > 0) {
@@ -181,7 +193,7 @@ object ClickEngine {
             it.copy(
                 currentOrder = item.node.order,
                 cycleIndex = cycleIndex,
-                message = "循環 ${cycleIndex + 1} · 序 ${item.node.order}"
+                message = msg(R.string.status_cycle_order, cycleIndex + 1, item.node.order)
             )
         }
 
@@ -239,7 +251,7 @@ object ClickEngine {
         // Avoid notifying every tap (binder cost) — every 8th + first
         if (n == 1 || n % 8 == 0) {
             AppStore.appContext?.let {
-                ClickNotification.showRunning(it, "已執行 $n")
+                ClickNotification.showRunning(it, msg(R.string.notif_executed, n))
             }
         }
     }
@@ -250,7 +262,7 @@ object ClickEngine {
             return true
         }
         consecutiveFails++
-        setError("手勢失敗（觸控打斷或無障礙已斷）")
+        setError(msg(R.string.err_gesture_failed))
         stop()
         return false
     }

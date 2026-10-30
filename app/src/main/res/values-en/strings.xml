@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoClick</string>
+    <string name="accessibility_service_description">Performs precise auto-taps and gestures in other apps. Only runs when you enable it. No data is collected.</string>
+
+    <string name="version_line">%1$s · Floating controls</string>
+    <string name="section_permissions">Permissions</string>
+    <string name="a11y_title">Accessibility</string>
+    <string name="a11y_on">On</string>
+    <string name="a11y_off_hint">Settings → Accessibility → AutoClick</string>
+    <string name="go_enable">Enable</string>
+    <string name="overlay_title">Overlay</string>
+    <string name="overlay_on">On</string>
+    <string name="overlay_off_hint">Shows the control bar and touch points</string>
+
+    <string name="section_control_bar">Control bar</string>
+    <string name="bar_orientation">Orientation</string>
+    <string name="bar_vertical_now">Current: vertical</string>
+    <string name="bar_horizontal_now">Current: horizontal</string>
+    <string name="bar_to_horizontal">Horizontal</string>
+    <string name="bar_to_vertical">Vertical</string>
+    <string name="bar_size">Bar size</string>
+    <string name="bar_size_hint">Current: %1$s (tap to cycle S→M→L)</string>
+    <string name="size_s">S</string>
+    <string name="size_m">M</string>
+    <string name="size_l">L</string>
+
+    <string name="section_start">Start</string>
+    <string name="bar_running_title">Control bar is running</string>
+    <string name="bar_running_sub">Leave to the desktop, or close it here</string>
+    <string name="close">Close</string>
+    <string name="start_autoc_title">Start AUTO-C</string>
+    <string name="start_ready_sub">Pick Single / Multi / Record</string>
+    <string name="start_need_perm">Enable permissions first</string>
+    <string name="start">Start</string>
+    <string name="section_start_type">Session type</string>
+    <string name="session_single">Single</string>
+    <string name="session_multi">Multi</string>
+    <string name="session_record">Record</string>
+    <string name="session_single_sub">One draggable touch point</string>
+    <string name="session_multi_sub">Multiple points + drag groups</string>
+    <string name="session_record_sub">Record taps (self-drawn screens need manual points)</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="section_language">Language</string>
+    <string name="lang_row_title">App language</string>
+    <string name="lang_zh_hant">繁體中文</string>
+    <string name="lang_zh_hans">简体中文</string>
+    <string name="lang_en">English</string>
+
+    <string name="section_help">Help</string>
+    <string name="help_title">Quick guide</string>
+    <string name="help_body">Flat B&amp;W control bar — rotate, resize, drag from center (works when collapsed). Short-tap moves a point; long-press sets interval / count / tap duration. Last point interval = wait before the next cycle.</string>
+
+    <string name="section_about">About</string>
+    <string name="about_title">Version</string>
+    <string name="about_body">AutoClick %1$s (build %2$d)\nFloating bar · Single / Multi / Record</string>
+
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_add_point">Add</string>
+    <string name="action_drag">Drag</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_delete_pick">Pick</string>
+    <string name="action_record">Record</string>
+    <string name="action_record_stop">Stop rec</string>
+    <string name="action_save">Save</string>
+    <string name="action_scheme">Schemes</string>
+    <string name="action_params">Params</string>
+    <string name="action_collapse">Collapse</string>
+    <string name="action_expand">Expand</string>
+    <string name="action_close">Close</string>
+
+    <string name="toast_delete_hint">Tap a point or drag group to delete</string>
+    <string name="toast_delete_cancel">Delete cancelled</string>
+    <string name="toast_popup_fail">Cannot show panel: %1$s</string>
+    <string name="node_popup_title">Point %1$d (long-press)</string>
+    <string name="node_interval_cycle">Wait after gesture (ms) = next cycle</string>
+    <string name="node_interval">Wait after gesture (ms)</string>
+    <string name="node_rhythm_hint">Pace ≈ press duration + this gap; gestures are serial — 1 ms cannot mean one tap per ms.</string>
+    <string name="node_tap_duration">Tap duration (ms, ≥1)</string>
+    <string name="node_click_count">Taps per cycle</string>
+    <string name="apply">Apply</string>
+    <string name="toast_node_updated">Updated point %1$d</string>
+
+    <string name="params_title">Parameters</string>
+    <string name="params_cycles">Cycles (blank = ∞)</string>
+    <string name="params_stop_after">Stop after (ms, 0 = none)</string>
+    <string name="params_global_tap">Default tap duration (ms)</string>
+    <string name="params_speed_hint">Note: dispatchGesture runs serially until onCompleted. Pace ≈ press duration + post-gesture wait.</string>
+    <string name="jitter_on">Tap jitter: On (anti-detect)</string>
+    <string name="jitter_off">Tap jitter: Off</string>
+    <string name="toast_params_applied">Applied (press %1$d ms)</string>
+
+    <string name="save_scheme_title">Save scheme</string>
+    <string name="scheme_name_hint">Scheme name</string>
+    <string name="toast_saved">Saved “%1$s”</string>
+    <string name="toast_save_fail">Save failed (need points and a name)</string>
+    <string name="toast_no_schemes">No saved schemes yet</string>
+    <string name="use_scheme_title">Use scheme</string>
+    <string name="scheme_item">%1$s  ·  %2$s · %3$d pts</string>
+    <string name="toast_loaded">Loaded “%1$s”</string>
+    <string name="empty_schemes_hint">No schemes yet — save one from the control bar</string>
+
+    <string name="notif_channel_status">Run status</string>
+    <string name="notif_channel_status_desc">Auto-click run status</string>
+    <string name="notif_channel_overlay">Floating controls</string>
+    <string name="notif_channel_overlay_desc">Overlay keep-alive</string>
+    <string name="notif_overlay_running">Floating controls active</string>
+    <string name="notif_overlay_bar">AUTO-C control bar</string>
+    <string name="notif_running_title">AutoClick running</string>
+    <string name="notif_executed">Done %1$d</string>
+    <string name="status_running">Running</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="err_stop_recording">Stop recording first</string>
+    <string name="err_need_a11y">Enable Accessibility first</string>
+    <string name="err_stop_running">Stop the run first</string>
+    <string name="err_no_points">No touch points or drag groups yet</string>
+    <string name="status_recording">Recording</string>
+    <string name="status_record_done">Recording stopped</string>
+    <string name="err_a11y_disconnected">Accessibility disconnected</string>
+    <string name="status_cycle_order">Cycle %1$d · # %2$d</string>
+    <string name="err_gesture_failed">Gesture failed (interrupted or Accessibility off)</string>
+</resources>
