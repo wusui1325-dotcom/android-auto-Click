@@ -666,7 +666,7 @@ fun SequenceDetail() {
     }
 
     Spacer(Modifier.height(12.dp))
-    Caption("序列可包含點擊、滑動與等待。目前為佔位列表。")
+    Caption("目前 ${SequenceRecorder.steps.size} 步。點擊步驟可刪除。")
 }
 
 @Composable
