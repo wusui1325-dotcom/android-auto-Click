@@ -126,6 +126,7 @@ class FloatingOverlayService : Service() {
         val button = (overlayView as? FrameLayout)?.getChildAt(0) as? TextView ?: return
         button.text = when {
             com.wusui.androidautoclick.SequenceRecorder.isRecording -> "●"
+            ClickController.isPaused -> "❚❚"
             ClickController.isRunning -> {
                 val remain = ClickController.remainingDisplay.ifEmpty { "■" }
                 val pt = if (ClickController.points.size > 1) "P${ClickController.currentPointIndex + 1}" else ""
