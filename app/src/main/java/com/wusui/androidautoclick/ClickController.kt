@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var notifyEvery: Int = 0 // 每 N 次更新通知
+    var stopAtTotal: Int = 0 // 總點擊達 N 就停
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -115,6 +115,10 @@ object ClickController {
                 if (!isRunning) return
                 if (isPaused) {
                     handler.postDelayed(this, 200)
+                    return
+                }
+                if (stopAtTotal > 0 && totalClicks >= stopAtTotal) {
+                    stop()
                     return
                 }
                 if (maxMinutes > 0 && elapsedSec() >= maxMinutes * 60L) {
