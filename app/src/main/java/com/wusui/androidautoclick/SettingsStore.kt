@@ -23,6 +23,7 @@ object SettingsStore {
         ClickController.startDelayMs = prefs.getLong("startDelay", 0)
         ClickController.maxCps = prefs.getInt("maxCps", 20)
         ClickController.maxMinutes = prefs.getInt("maxMin", 0)
+        SettingsColors.isDark = prefs.getBoolean("dark", true)
         SequenceRecorder.replayLoops = prefs.getInt("loops", 1)
     }
 
@@ -38,6 +39,7 @@ object SettingsStore {
             .putLong("startDelay", ClickController.startDelayMs)
             .putInt("maxCps", ClickController.maxCps)
             .putInt("maxMin", ClickController.maxMinutes)
+            .putBoolean("dark", SettingsColors.isDark)
             .putInt("loops", SequenceRecorder.replayLoops)
             .apply()
     }

@@ -925,6 +925,7 @@ fun AboutDetail() {
         }
         SettingsStatusRow("切換主題", if (SettingsColors.isDark) "深色" else "淺色") {
             SettingsColors.isDark = !SettingsColors.isDark
+            SettingsStore.save()
         }
         SettingsStatusRow("授權", "MIT") {}
     }
