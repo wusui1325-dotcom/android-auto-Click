@@ -25,8 +25,12 @@ object ClickController {
         points[points.lastIndex] = (last.first + dx) to (last.second + dy)
     }
 
-    var currentPointIndex: Int = 0
-        private set
+    val log = mutableListOf<String>()
+
+    private fun addLog(msg: String) {
+        log.add(0, msg)
+        if (log.size > 20) log.removeAt(log.lastIndex)
+    }
 
     private fun updateRemaining() {
         remainingDisplay = if (count < 0) "∞" else remaining.coerceAtLeast(0).toString()
@@ -44,6 +48,7 @@ object ClickController {
         remaining = count
         pointIndex = 0
         updateRemaining()
+        addLog("開始")
 
         runnable = object : Runnable {
             override fun run() {
@@ -55,6 +60,7 @@ object ClickController {
 
                 val (x, y) = points.getOrElse(pointIndex) { points.first() }
                 service.performClick(x, y, durationMs)
+                addLog("點擊 ${x.toInt()},${y.toInt()}")
 
                 if (points.size > 1) {
                     pointIndex = (pointIndex + 1) % points.size
@@ -73,6 +79,7 @@ object ClickController {
     }
 
     fun stop() {
+        if (isRunning) addLog("停止")
         isRunning = false
         runnable?.let { handler.removeCallbacks(it) }
         runnable = null

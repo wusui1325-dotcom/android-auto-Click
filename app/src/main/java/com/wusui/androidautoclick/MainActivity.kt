@@ -460,6 +460,18 @@ fun ClickDetail(
         ToggleRow("防偵測延遲", antiDetect) { onAntiDetect(it) }
     }
 
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "記錄") {
+        if (ClickController.log.isEmpty()) {
+            SettingsStatusRow("尚無記錄", "") {}
+        } else {
+            ClickController.log.take(5).forEach { line ->
+                SettingsStatusRow(line, "") {}
+            }
+        }
+    }
+
     Spacer(Modifier.height(12.dp))
     Caption("點擊列可循環切換數值。以上為佔位狀態，後續將連接實際點擊引擎。")
 }
