@@ -432,6 +432,12 @@ fun ClickDetail(
         SettingsStatusRow("新增點", "") {
             ClickController.addPoint(540f, 960f)
         }
+        SettingsStatusRow("微調 +10", "") {
+            ClickController.nudgeLastPoint(10f, 0f)
+        }
+        SettingsStatusRow("微調 -10", "") {
+            ClickController.nudgeLastPoint(-10f, 0f)
+        }
         SettingsStatusRow("清空點", "") {
             ClickController.clearPoints()
         }

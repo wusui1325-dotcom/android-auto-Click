@@ -19,9 +19,10 @@ object ClickController {
         points.add(x to y)
     }
 
-    fun clearPoints() {
-        points.clear()
-        points.add(540f to 960f)
+    fun nudgeLastPoint(dx: Float, dy: Float) {
+        if (points.isEmpty()) return
+        val last = points.last()
+        points[points.lastIndex] = (last.first + dx) to (last.second + dy)
     }
 
     var remainingDisplay: String = ""
