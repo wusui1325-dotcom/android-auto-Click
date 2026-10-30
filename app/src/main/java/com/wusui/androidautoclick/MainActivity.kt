@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,16 +40,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SettingsTheme {
-                key(SettingsColors.isDark) {
-                    AppShell()
-                }
+                AppShell()
             }
         }
     }
 }
 
 private object SettingsColors {
-    var isDark = true
+    var isDark by mutableStateOf(true)
 
     val bg: Color get() = if (isDark) Color(0xFF000000) else Color(0xFFF2F2F7)
     val text: Color get() = if (isDark) Color(0xFFF5F5F7) else Color(0xFF1D1D1F)
@@ -922,11 +922,9 @@ fun AboutDetail() {
         }
         SettingsStatusRow("高對比", if (SettingsColors.isDark) "開" else "關") {
             SettingsColors.isDark = true
-            themeDark = true
         }
-        SettingsStatusRow("切換主題", if (themeDark) "深色" else "淺色") {
-            themeDark = !themeDark
-            SettingsColors.isDark = themeDark
+        SettingsStatusRow("切換主題", if (SettingsColors.isDark) "深色" else "淺色") {
+            SettingsColors.isDark = !SettingsColors.isDark
         }
         SettingsStatusRow("授權", "MIT") {}
     }
@@ -1054,7 +1052,8 @@ fun SettingsRow(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    var pressed by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1065,7 +1064,10 @@ fun SettingsRow(
                     else -> Color.Transparent
                 }
             )
-            .clickable { onClick() }
+            .clickable(
+                interactionSource = interaction,
+                indication = null
+            ) { onClick() }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1089,13 +1091,14 @@ fun SettingsStatusRow(
     value: String,
     onClick: () -> Unit
 ) {
-    var pressed by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (pressed) SettingsColors.rowActive else Color.Transparent)
             .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null
             ) { onClick() }
             .padding(horizontal = 16.dp, vertical = 14.dp),
