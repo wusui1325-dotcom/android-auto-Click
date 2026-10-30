@@ -213,10 +213,10 @@ object ClickController {
                         pointIndex += pingDir
                         if (pointIndex >= usePoints.size || pointIndex < 0) {
                             pingDir = -pingDir
-                            pointIndex = (pointIndex + pingDir).coerceIn(0, usePoints.size - 1)
+                            pointIndex = (pointIndex + pingDir).coerceIn(0, usePoints.lastIndex)
                         }
                     } else pointIndex = (pointIndex + 1) % usePoints.size
-                    currentPointIndex = pointIndex
+                    currentPointIndex = pointIndex.coerceIn(0, usePoints.lastIndex)
                 }
                 if (count >= 0 && !(warmupClicks > 0 && totalClicks <= warmupClicks)) remaining--
                 updateRemaining()
