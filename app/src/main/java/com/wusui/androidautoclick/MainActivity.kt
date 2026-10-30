@@ -712,12 +712,14 @@ fun OverlayDetail(
 
 @Composable
 fun AboutDetail() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var themeDark by remember { mutableStateOf(SettingsColors.isDark) }
     Spacer(Modifier.height(12.dp))
     DetailTitle("關於")
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.9.0") {}
+        SettingsStatusRow("版本", "1.0.0") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
             SequenceRecorder.stopReplay()
@@ -725,6 +727,11 @@ fun AboutDetail() {
         SettingsStatusRow("重設預設", "") {
             ClickController.resetDefaults()
             SettingsStore.save()
+        }
+        SettingsStatusRow("匯出設定", "") {
+            val text = SettingsStore.exportText()
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("settings", text))
         }
         SettingsStatusRow("切換主題", if (themeDark) "深色" else "淺色") {
             themeDark = !themeDark

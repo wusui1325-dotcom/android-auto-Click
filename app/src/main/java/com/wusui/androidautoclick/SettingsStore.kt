@@ -24,17 +24,13 @@ object SettingsStore {
         SequenceRecorder.replayLoops = prefs.getInt("loops", 1)
     }
 
-    fun save() {
-        prefs.edit()
-            .putLong("interval", ClickController.intervalMs)
-            .putLong("duration", ClickController.durationMs)
-            .putInt("count", ClickController.count)
-            .putString("mode", ClickController.mode)
-            .putBoolean("randOff", ClickController.randomOffset)
-            .putBoolean("randInt", ClickController.randomInterval)
-            .putBoolean("anti", ClickController.antiDetect)
-            .putLong("startDelay", ClickController.startDelayMs)
-            .putInt("loops", SequenceRecorder.replayLoops)
-            .apply()
+    fun exportText(): String = buildString {
+        appendLine("interval=${ClickController.intervalMs}")
+        appendLine("duration=${ClickController.durationMs}")
+        appendLine("count=${ClickController.count}")
+        appendLine("mode=${ClickController.mode}")
+        appendLine("maxCps=${ClickController.maxCps}")
+        appendLine("startDelay=${ClickController.startDelayMs}")
+        appendLine("loops=${SequenceRecorder.replayLoops}")
     }
 }
