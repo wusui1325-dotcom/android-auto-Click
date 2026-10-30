@@ -133,10 +133,7 @@ class FloatingOverlayService : Service() {
         button.text = when {
             com.wusui.androidautoclick.SequenceRecorder.isRecording -> "●"
             ClickController.isPaused -> "❚❚"
-            ClickController.isRunning -> {
-                val remain = ClickController.remainingDisplay.ifEmpty { "■" }
-                remain
-            }
+            ClickController.isRunning -> ClickController.remainingDisplay.ifEmpty { "■" }
             else -> "▶"
         }
     }
