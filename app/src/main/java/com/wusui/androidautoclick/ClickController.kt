@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var randomPoint: Boolean = false // 多點隨機選
+    var clampToScreen: Boolean = true
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -152,6 +152,13 @@ object ClickController {
                 if (mirrorY) {
                     val dm = appContext?.resources?.displayMetrics
                     if (dm != null) y = dm.heightPixels - y
+                }
+                if (clampToScreen) {
+                    val dm = appContext?.resources?.displayMetrics
+                    if (dm != null) {
+                        x = x.coerceIn(0f, dm.widthPixels.toFloat())
+                        y = y.coerceIn(0f, dm.heightPixels.toFloat())
+                    }
                 }
                 if (randomOffset || humanize) {
                     val range = if (humanize) 3 else 8

@@ -619,6 +619,9 @@ fun ClickDetail(
             ClickController.humanize = it
         }
         ToggleRow("隨機偏移", randomOffset) { onRandomOffset(it) }
+        ToggleRow("限制螢幕內", ClickController.clampToScreen) {
+            ClickController.clampToScreen = it
+        }
         ToggleRow("隨機選點", ClickController.randomPoint) {
             ClickController.randomPoint = it
         }
