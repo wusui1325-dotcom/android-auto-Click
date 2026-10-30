@@ -144,12 +144,7 @@ fun AppShell() {
                 } else {
                     Column(Modifier.fillMaxSize()) {
                         DetailTopBar(
-                            title = when (page) {
-                                "permissions" -> "權限"
-                                "click" -> "點擊"
-                                "about" -> "關於"
-                                else -> page
-                            },
+                            title = titleFor(page),
                             onBack = { selected = null }
                         )
                         DetailPane(
@@ -165,6 +160,15 @@ fun AppShell() {
             }
         }
     }
+}
+
+private fun titleFor(id: String) = when (id) {
+    "permissions" -> "權限"
+    "click" -> "點擊"
+    "sequence" -> "序列"
+    "overlay" -> "懸浮窗"
+    "about" -> "關於"
+    else -> id
 }
 
 @Composable
@@ -186,26 +190,16 @@ fun CategoryList(
         )
 
         SettingsSection(label = "控制") {
-            SettingsRow(
-                label = "權限",
-                selected = selected == "permissions",
-                onClick = { onSelect("permissions") }
-            )
-            SettingsRow(
-                label = "點擊",
-                selected = selected == "click",
-                onClick = { onSelect("click") }
-            )
+            SettingsRow("權限", selected == "permissions") { onSelect("permissions") }
+            SettingsRow("點擊", selected == "click") { onSelect("click") }
+            SettingsRow("序列", selected == "sequence") { onSelect("sequence") }
+            SettingsRow("懸浮窗", selected == "overlay") { onSelect("overlay") }
         }
 
         Spacer(Modifier.height(8.dp))
 
         SettingsSection(label = "其他") {
-            SettingsRow(
-                label = "關於",
-                selected = selected == "about",
-                onClick = { onSelect("about") }
-            )
+            SettingsRow("關於", selected == "about") { onSelect("about") }
         }
     }
 }
@@ -225,13 +219,10 @@ fun DetailPane(
             .padding(horizontal = 20.dp)
     ) {
         when (selected) {
-            "permissions" -> PermissionsDetail(
-                accessibilityOn = accessibilityOn,
-                overlayOn = overlayOn,
-                onOpenAccessibility = onOpenAccessibility,
-                onOpenOverlay = onOpenOverlay
-            )
+            "permissions" -> PermissionsDetail(accessibilityOn, overlayOn, onOpenAccessibility, onOpenOverlay)
             "click" -> ClickDetail()
+            "sequence" -> SequenceDetail()
+            "overlay" -> OverlayDetail(overlayOn, onOpenOverlay)
             "about" -> AboutDetail()
         }
     }
@@ -245,66 +236,146 @@ fun PermissionsDetail(
     onOpenOverlay: () -> Unit
 ) {
     Spacer(Modifier.height(12.dp))
+    DetailTitle("權限")
+    Spacer(Modifier.height(16.dp))
+
+    SettingsSection(label = "必要") {
+        SettingsStatusRow("無障礙服務", if (accessibilityOn) "已開啟" else "未開啟", onOpenAccessibility)
+        SettingsStatusRow("懸浮窗", if (overlayOn) "已開啟" else "未開啟", onOpenOverlay)
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Caption("無障礙服務用於在其他應用中執行點擊，必須在系統設定中手動開啟。懸浮窗用於浮動控制面板。")
+}
+
+@Composable
+fun ClickDetail() {
+    Spacer(Modifier.height(12.dp))
+    DetailTitle("點擊")
+    Spacer(Modifier.height(16.dp))
+
+    SettingsSection(label = "基本") {
+        SettingsStatusRow("模式", "單點") {}
+        SettingsStatusRow("間隔", "200 ms") {}
+        SettingsStatusRow("次數", "無限") {}
+        SettingsStatusRow("持續時間", "50 ms") {}
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "座標") {
+        SettingsStatusRow("點 1", "540, 960") {}
+        SettingsStatusRow("點 2", "未設定") {}
+        SettingsStatusRow("點 3", "未設定") {}
+        SettingsStatusRow("新增點", "") {}
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "進階") {
+        SettingsStatusRow("隨機偏移", "關閉") {}
+        SettingsStatusRow("隨機間隔", "關閉") {}
+        SettingsStatusRow("防偵測延遲", "關閉") {}
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Caption("以上為佔位參數，後續將連接實際點擊引擎。")
+}
+
+@Composable
+fun SequenceDetail() {
+    Spacer(Modifier.height(12.dp))
+    DetailTitle("序列")
+    Spacer(Modifier.height(16.dp))
+
+    SettingsSection(label = "錄製") {
+        SettingsStatusRow("開始錄製", "") {}
+        SettingsStatusRow("停止並儲存", "") {}
+        SettingsStatusRow("清空目前", "") {}
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "已儲存") {
+        SettingsStatusRow("日常任務 A", "12 步") {}
+        SettingsStatusRow("簽到", "3 步") {}
+        SettingsStatusRow("新建序列", "") {}
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Caption("序列可包含點擊、滑動與等待。目前為佔位列表。")
+}
+
+@Composable
+fun OverlayDetail(overlayOn: Boolean, onOpenOverlay: () -> Unit) {
+    Spacer(Modifier.height(12.dp))
+    DetailTitle("懸浮窗")
+    Spacer(Modifier.height(16.dp))
+
+    SettingsSection(label = "顯示") {
+        SettingsStatusRow("狀態", if (overlayOn) "權限已開" else "未授權", onOpenOverlay)
+        SettingsStatusRow("浮動按鈕", "關閉") {}
+        SettingsStatusRow("透明度", "90%") {}
+        SettingsStatusRow("大小", "中") {}
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "操作") {
+        SettingsStatusRow("顯示開始／停止", "開啟") {}
+        SettingsStatusRow("顯示剩餘次數", "開啟") {}
+        SettingsStatusRow("可拖曳", "開啟") {}
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Caption("浮動控制面板將在懸浮窗權限開啟後可用。")
+}
+
+@Composable
+fun AboutDetail() {
+    Spacer(Modifier.height(12.dp))
+    DetailTitle("關於")
+    Spacer(Modifier.height(16.dp))
+
+    SettingsSection(label = "應用") {
+        SettingsStatusRow("版本", "0.1.0") {}
+        SettingsStatusRow("授權", "MIT") {}
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "原則") {
+        SettingsStatusRow("無廣告", "是") {}
+        SettingsStatusRow("無追蹤", "是") {}
+        SettingsStatusRow("開源", "是") {}
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Caption("極簡、免廣告、高對比的自動點擊工具。")
+}
+
+@Composable
+fun DetailTitle(text: String) {
     Text(
-        "權限",
+        text,
         style = TextStyle(
             fontSize = 17.sp,
             fontWeight = FontWeight(650),
             color = SettingsColors.text
         )
     )
-    Spacer(Modifier.height(16.dp))
+}
 
-    SettingsSection(label = "必要") {
-        SettingsStatusRow(
-            label = "無障礙服務",
-            value = if (accessibilityOn) "已開啟" else "未開啟",
-            onClick = onOpenAccessibility
-        )
-        SettingsStatusRow(
-            label = "懸浮窗",
-            value = if (overlayOn) "已開啟" else "未開啟",
-            onClick = onOpenOverlay
-        )
-    }
-
-    Spacer(Modifier.height(12.dp))
+@Composable
+fun Caption(text: String) {
     Text(
-        "無障礙服務用於在其他應用中執行點擊，必須在系統設定中手動開啟。懸浮窗用於後續浮動控制面板。",
+        text,
         style = TextStyle(
             fontSize = 12.sp,
             lineHeight = 18.sp,
             color = SettingsColors.secondary
         ),
         modifier = Modifier.padding(horizontal = 4.dp)
-    )
-}
-
-@Composable
-fun ClickDetail() {
-    Spacer(Modifier.height(12.dp))
-    Text(
-        "點擊",
-        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight(650), color = SettingsColors.text)
-    )
-    Spacer(Modifier.height(16.dp))
-    Text(
-        "點擊設定與錄製將在下一步加入。",
-        style = TextStyle(fontSize = 12.sp, lineHeight = 18.sp, color = SettingsColors.secondary)
-    )
-}
-
-@Composable
-fun AboutDetail() {
-    Spacer(Modifier.height(12.dp))
-    Text(
-        "關於",
-        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight(650), color = SettingsColors.text)
-    )
-    Spacer(Modifier.height(16.dp))
-    Text(
-        "極簡、免廣告、高對比的自動點擊工具。",
-        style = TextStyle(fontSize = 12.sp, lineHeight = 18.sp, color = SettingsColors.secondary)
     )
 }
 
@@ -423,11 +494,13 @@ fun SettingsStatusRow(
             ),
             modifier = Modifier.weight(1f)
         )
-        Text(
-            value,
-            style = TextStyle(fontSize = 16.sp, color = SettingsColors.secondary)
-        )
-        Spacer(Modifier.width(6.dp))
+        if (value.isNotEmpty()) {
+            Text(
+                value,
+                style = TextStyle(fontSize = 16.sp, color = SettingsColors.secondary)
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         Text("›", color = SettingsColors.arrow, fontSize = 18.sp)
     }
 }
