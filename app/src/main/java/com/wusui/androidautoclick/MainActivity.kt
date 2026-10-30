@@ -563,6 +563,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("停止需確認", ClickController.confirmStop) {
+            ClickController.confirmStop = it
+        }
         ToggleRow("執行時隱藏懸浮窗", ClickController.autoHideOverlay) {
             ClickController.autoHideOverlay = it
         }
