@@ -205,10 +205,25 @@ class OverlayService : Service() {
         if (key != lastBarKey) rebuildBar()
     }
 
+    /** Last laid-out bar size for center→top-left conversion. */
+    private var barW = 0
+    private var barH = 0
+
     private fun applyBarCenter(view: View, params: WindowManager.LayoutParams) {
-        val w = if (view.width > 0) view.width else view.measuredWidth
-        val h = if (view.height > 0) view.height else view.measuredHeight
-        if (w <= 0 || h <= 0) return
+        val w = when {
+            view.width > 0 -> view.width
+            view.measuredWidth > 0 -> view.measuredWidth
+            barW > 0 -> barW
+            else -> dp(120)
+        }
+        val h = when {
+            view.height > 0 -> view.height
+            view.measuredHeight > 0 -> view.measuredHeight
+            barH > 0 -> barH
+            else -> dp(48)
+        }
+        barW = w
+        barH = h
         params.x = (barCenterX - w / 2f).toInt()
         params.y = (barCenterY - h / 2f).toInt()
         try {
@@ -332,8 +347,8 @@ class OverlayService : Service() {
 
         iconBtn(FlatIconView.Kind.CLOSE, "關閉", danger = true) { closeAll() }
 
-        // Expanded: scroll container so many buttons fit; collapsed: bare row (still draggable)
-        val host: View = when {
+        // Inner content (may scroll when expanded)
+        val content: View = when {
             expanded && vertical -> ScrollView(this).apply {
                 isVerticalScrollBarEnabled = false
                 addView(row)
@@ -345,6 +360,9 @@ class OverlayService : Service() {
             else -> row
         }
 
+        // DragShell intercepts touches BEFORE clickable children — fixes "拖不動"
+        val host = DragShell(this).apply { addView(content) }
+
         val lp = baseLp(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT
@@ -352,12 +370,15 @@ class OverlayService : Service() {
             x = (barCenterX - dp(60)).toInt()
             y = (barCenterY - dp(24)).toInt()
         }
-        setupBarDrag(host, lp)
+        wireBarDrag(host, lp)
         try {
             windowManager.addView(host, lp)
             barView = host
             barParams = lp
-            host.post { applyBarCenter(host, lp) }
+            host.post {
+                if (host.width > 0) { barW = host.width; barH = host.height }
+                applyBarCenter(host, lp)
+            }
         } catch (_: Exception) {
         }
     }
@@ -371,41 +392,97 @@ class OverlayService : Service() {
         barView = null
     }
 
-    /** Drag by bar center; works expanded and collapsed. */
-    private fun setupBarDrag(view: View, params: WindowManager.LayoutParams) {
-        val slop = ViewConfiguration.get(this).scaledTouchSlop
-        var cx0 = 0f
-        var cy0 = 0f
-        var tx = 0f
-        var ty = 0f
-        var moved = false
-        view.setOnTouchListener { v, e ->
-            when (e.actionMasked) {
+    /**
+     * Center-anchored drag via [DragShell] intercept: children keep clicks/scroll until
+     * finger moves past touch slop, then shell steals the gesture and moves the bar.
+     */
+    private fun wireBarDrag(shell: DragShell, params: WindowManager.LayoutParams) {
+        shell.onDrag = { dx, dy ->
+            barCenterX = shell.downCenterX + dx
+            barCenterY = shell.downCenterY + dy
+            applyBarCenter(shell, params)
+        }
+        shell.captureDownCenter = {
+            shell.downCenterX = barCenterX
+            shell.downCenterY = barCenterY
+        }
+    }
+
+    /**
+     * Intercepts MOVE past slop so clickable icons cannot eat the drag gesture
+     * (ViewGroup OnTouchListener is too late — kids receive DOWN first).
+     */
+    private class DragShell(context: android.content.Context) : FrameLayout(context) {
+        var onDrag: ((dx: Float, dy: Float) -> Unit)? = null
+        var captureDownCenter: (() -> Unit)? = null
+        var downCenterX = 0f
+        var downCenterY = 0f
+        private val slop = ViewConfiguration.get(context).scaledTouchSlop
+        private var downRawX = 0f
+        private var downRawY = 0f
+        private var dragging = false
+
+        init {
+            layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+        }
+
+        override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+            when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    cx0 = barCenterX
-                    cy0 = barCenterY
-                    tx = e.rawX
-                    ty = e.rawY
-                    moved = false
-                    true
+                    downRawX = ev.rawX
+                    downRawY = ev.rawY
+                    dragging = false
+                    captureDownCenter?.invoke()
+                    return false
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = e.rawX - tx
-                    val dy = e.rawY - ty
-                    if (abs(dx) > slop || abs(dy) > slop) {
-                        moved = true
-                        barCenterX = cx0 + dx
-                        barCenterY = cy0 + dy
-                        applyBarCenter(v, params)
+                    if (!dragging) {
+                        val dx = ev.rawX - downRawX
+                        val dy = ev.rawY - downRawY
+                        if (abs(dx) > slop || abs(dy) > slop) {
+                            dragging = true
+                            parent?.requestDisallowInterceptTouchEvent(true)
+                            return true
+                        }
                     }
-                    true
+                    return dragging
                 }
-                MotionEvent.ACTION_UP -> {
-                    if (!moved) dispatchChildClick(v, e.rawX, e.rawY)
-                    true
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val was = dragging
+                    dragging = false
+                    return was
                 }
-                else -> false
             }
+            return false
+        }
+
+        override fun onTouchEvent(ev: MotionEvent): Boolean {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    // No child took it (hit padding) — still allow drag from here
+                    downRawX = ev.rawX
+                    downRawY = ev.rawY
+                    dragging = false
+                    captureDownCenter?.invoke()
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = ev.rawX - downRawX
+                    val dy = ev.rawY - downRawY
+                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) {
+                        dragging = true
+                    }
+                    if (dragging) {
+                        onDrag?.invoke(dx, dy)
+                    }
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    dragging = false
+                    return true
+                }
+            }
+            return super.onTouchEvent(ev)
         }
     }
 
@@ -479,8 +556,19 @@ class OverlayService : Service() {
             if (locked) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
 
+        // Ensure child TextView cannot steal touches from wrap's listener path
+        for (i in 0 until wrap.childCount) {
+            wrap.getChildAt(i).apply {
+                isClickable = false
+                isFocusable = false
+            }
+        }
+        wrap.isClickable = true
+        wrap.isFocusable = false
+
         if (!locked) {
             val longMs = ViewConfiguration.getLongPressTimeout().toLong()
+            val slop = ViewConfiguration.get(this).scaledTouchSlop
             var ix = 0
             var iy = 0
             var tx = 0f
@@ -491,6 +579,7 @@ class OverlayService : Service() {
                 longFired = true
                 showNodePopup(node)
             }
+            // Use DragShell-style: handle on the wrap via listener after making it the touch target
             wrap.setOnTouchListener { _, e ->
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
@@ -505,29 +594,26 @@ class OverlayService : Service() {
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (e.rawX - tx).toInt()
                         val dy = (e.rawY - ty).toInt()
-                        if (abs(dx) > 4 || abs(dy) > 4) {
+                        if (abs(dx) > slop || abs(dy) > slop) {
                             if (!moved) mainHandler.removeCallbacks(longRun)
                             moved = true
+                            params.x = ix + dx
+                            params.y = iy + dy
+                            try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
                         }
-                        params.x = ix + dx
-                        params.y = iy + dy
-                        try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
-                        AppStore.moveNode(
-                            node.id,
-                            params.x + size / 2f,
-                            params.y + size / 2f + layoutToScreenOffsetY
-                        )
                         true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        draggingMarker = false
                         mainHandler.removeCallbacks(longRun)
-                        AppStore.moveNode(
-                            node.id,
-                            params.x + size / 2f,
-                            params.y + size / 2f + layoutToScreenOffsetY
-                        )
-                        // Tap: delete-mode only. No adjust popup on short tap.
+                        if (moved) {
+                            AppStore.moveNode(
+                                node.id,
+                                params.x + size / 2f,
+                                params.y + size / 2f + layoutToScreenOffsetY
+                            )
+                        }
+                        draggingMarker = false
+                        // Tap: delete-mode only. Long-press opens adjust.
                         if (!moved && !longFired && AppStore.deleteMode.value) {
                             AppStore.removeNodeOrGroup(node.id)
                             markersDirty = true
