@@ -210,6 +210,11 @@ class FloatingOverlayService : Service() {
                     }
                     true
                 }
+                MotionEvent.ACTION_CANCEL -> {
+                    longPressHandler.removeCallbacksAndMessages(null)
+                    button.alpha = 1f
+                    true
+                }
                 else -> false
             }
         }
