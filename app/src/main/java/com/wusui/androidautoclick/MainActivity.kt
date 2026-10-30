@@ -642,6 +642,9 @@ fun SequenceDetail() {
             val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
             SequenceRecorder.importText(text)
         }
+        SettingsStatusRow("反轉步驟", "") {
+            SequenceRecorder.reverse()
+        }
         SettingsStatusRow("上移最後一步", "") {
             if (SequenceRecorder.steps.isNotEmpty()) {
                 SequenceRecorder.moveUp(SequenceRecorder.steps.lastIndex)

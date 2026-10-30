@@ -58,8 +58,8 @@ object SequenceRecorder {
         }
     }
 
-    fun clearSaved() {
-        saved.clear()
+    fun reverse() {
+        steps.reverse()
     }
 
     fun duplicateCurrent(name: String) {
