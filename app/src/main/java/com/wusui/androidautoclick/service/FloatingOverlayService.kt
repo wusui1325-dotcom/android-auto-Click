@@ -158,6 +158,7 @@ class FloatingOverlayService : Service() {
                     touchY = event.rawY
                     moved = false
                     longPressed = false
+                    button.alpha = 0.65f
                     longPressHandler.postDelayed({
                         if (!moved) {
                             longPressed = true
@@ -187,6 +188,7 @@ class FloatingOverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     longPressHandler.removeCallbacksAndMessages(null)
+                    button.alpha = 1f
                     if (!moved && !longPressed) {
                         val now = System.currentTimeMillis()
                         if (now - lastTap < 300) {
