@@ -63,12 +63,29 @@ object SequenceRecorder {
         saved[name] = steps.toList()
     }
 
-    fun exportText(): String {
-        return steps.joinToString("\n") { s ->
-            when (s.type) {
-                "click" -> "click ${s.x.toInt()} ${s.y.toInt()} ${s.delayMs}"
-                "wait" -> "wait ${s.delayMs}"
-                else -> s.type
+    fun importText(text: String) {
+        steps.clear()
+        text.lines().forEach { line ->
+            val p = line.trim().split(" ")
+            when (p.getOrNull(0)) {
+                "click" -> {
+                    val x = p.getOrNull(1)?.toFloatOrNull() ?: return@forEach
+                    val y = p.getOrNull(2)?.toFloatOrNull() ?: return@forEach
+                    val d = p.getOrNull(3)?.toLongOrNull() ?: 200
+                    steps.add(Step("click", x, y, delayMs = d))
+                }
+                "wait" -> {
+                    val d = p.getOrNull(1)?.toLongOrNull() ?: return@forEach
+                    steps.add(Step("wait", delayMs = d))
+                }
+                "swipe" -> {
+                    val x = p.getOrNull(1)?.toFloatOrNull() ?: return@forEach
+                    val y = p.getOrNull(2)?.toFloatOrNull() ?: return@forEach
+                    val x2 = p.getOrNull(3)?.toFloatOrNull() ?: return@forEach
+                    val y2 = p.getOrNull(4)?.toFloatOrNull() ?: return@forEach
+                    val d = p.getOrNull(5)?.toLongOrNull() ?: 300
+                    steps.add(Step("swipe", x, y, x2, y2, d))
+                }
             }
         }
     }

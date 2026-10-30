@@ -539,7 +539,11 @@ fun SequenceDetail() {
             val text = SequenceRecorder.exportText()
             val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("sequence", text))
-            android.util.Log.d("AutoClick", text.ifEmpty { "(empty)" })
+        }
+        SettingsStatusRow("從剪貼簿匯入", "") {
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
+            SequenceRecorder.importText(text)
         }
         SettingsStatusRow("上移最後一步", "") {
             if (SequenceRecorder.steps.isNotEmpty()) {
