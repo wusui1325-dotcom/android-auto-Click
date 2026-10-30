@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var scale: Float = 1f // 座標縮放
+    var invertInterval: Boolean = false // 間隔反向（越點越快）
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -174,6 +174,7 @@ object ClickController {
 
                 if (isRunning) {
                     var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
+                    if (invertInterval && totalClicks > 0) delay = (delay * 0.95).toLong().coerceAtLeast(20)
                     if (slowStart && totalClicks < 5) delay *= 2
                     if (antiDetect) delay += kotlin.random.Random.nextLong(0, 80)
                     val minDelay = if (maxCps > 0) 1000L / maxCps else 20L
