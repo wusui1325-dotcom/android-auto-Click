@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var warmupClicks: Int = 0 // 前 N 次忽略計數
+    var slowStart: Boolean = false // 前幾次間隔加倍
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -161,6 +161,7 @@ object ClickController {
 
                 if (isRunning) {
                     var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
+                    if (slowStart && totalClicks < 5) delay *= 2
                     if (antiDetect) delay += kotlin.random.Random.nextLong(0, 80)
                     val minDelay = if (maxCps > 0) 1000L / maxCps else 20L
                     handler.postDelayed(this, delay.coerceAtLeast(minDelay))

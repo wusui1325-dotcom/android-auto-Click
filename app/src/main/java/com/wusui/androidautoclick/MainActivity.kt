@@ -563,6 +563,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("慢啟動", ClickController.slowStart) {
+            ClickController.slowStart = it
+        }
         ToggleRow("記錄點擊", ClickController.logClicks) {
             ClickController.logClicks = it
         }
