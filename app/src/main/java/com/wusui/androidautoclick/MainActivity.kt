@@ -459,8 +459,15 @@ fun SequenceDetail() {
         SettingsStatusRow("開始錄製", if (SequenceRecorder.isRecording) "錄製中" else "") {
             SequenceRecorder.start()
         }
+        SettingsStatusRow("加入測試點", "") {
+            SequenceRecorder.addClick(540f, 960f, ClickController.intervalMs)
+        }
         SettingsStatusRow("停止並儲存", "${SequenceRecorder.steps.size} 步") {
             SequenceRecorder.stop()
+            SequenceRecorder.save("未命名 ${SequenceRecorder.saved.size + 1}")
+        }
+        SettingsStatusRow("回放目前", if (SequenceRecorder.isReplaying) "回放中" else "") {
+            if (SequenceRecorder.isReplaying) SequenceRecorder.stopReplay() else SequenceRecorder.replay()
         }
         SettingsStatusRow("清空目前", "") {
             SequenceRecorder.clear()
@@ -470,9 +477,18 @@ fun SequenceDetail() {
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "已儲存") {
-        SettingsStatusRow("日常任務 A", "12 步") {}
-        SettingsStatusRow("簽到", "3 步") {}
-        SettingsStatusRow("新建序列", "") {}
+        if (SequenceRecorder.saved.isEmpty()) {
+            SettingsStatusRow("尚無序列", "") {}
+        } else {
+            SequenceRecorder.saved.keys.forEach { name ->
+                SettingsStatusRow(name, "${SequenceRecorder.saved[name]?.size ?: 0} 步") {
+                    SequenceRecorder.load(name)
+                }
+            }
+        }
+        SettingsStatusRow("新建序列", "") {
+            SequenceRecorder.start()
+        }
     }
 
     Spacer(Modifier.height(12.dp))
