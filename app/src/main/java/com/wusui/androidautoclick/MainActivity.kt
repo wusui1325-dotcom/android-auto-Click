@@ -1019,10 +1019,17 @@ fun SettingsRow(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    var pressed by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (selected) SettingsColors.selected else Color.Transparent)
+            .background(
+                when {
+                    pressed -> SettingsColors.rowActive
+                    selected -> SettingsColors.selected
+                    else -> Color.Transparent
+                }
+            )
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
