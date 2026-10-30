@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var burstPause: Long = 0 // 爆發後額外等待
+    var safeMode: Boolean = false // 強制最低間隔 100ms
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -236,7 +236,7 @@ object ClickController {
                     if (decelerate && totalClicks > 0) delay = (delay * 1.05).toLong()
                     if (slowStart && totalClicks < 5) delay *= 2
                     if (antiDetect) delay += kotlin.random.Random.nextLong(0, 80)
-                    val minDelay = if (maxCps > 0) 1000L / maxCps else 20L
+                    val minDelay = if (safeMode) 100L else if (maxCps > 0) 1000L / maxCps else 20L
                     handler.postDelayed(this, delay.coerceAtLeast(minDelay))
                 }
             }

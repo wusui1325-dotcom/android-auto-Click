@@ -630,6 +630,9 @@ fun ClickDetail(
         ToggleRow("記錄點擊", ClickController.logClicks) {
             ClickController.logClicks = it
         }
+        ToggleRow("安全模式", ClickController.safeMode) {
+            ClickController.safeMode = it
+        }
         ToggleRow("失敗即停", ClickController.stopOnError) {
             ClickController.stopOnError = it
         }
