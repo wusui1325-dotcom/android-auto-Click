@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var logEvery: Int = 1 // 每 N 次記錄一次
+    var notifyEvery: Int = 0 // 每 N 次更新通知
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -198,13 +198,19 @@ object ClickController {
                     }
                     currentPointIndex = pointIndex
                 }
-                if (count >= 0 && warmupClicks > 0 && totalClicks <= warmupClicks) {
-                    // 暖機期間不扣次數
-                } else if (count >= 0) {
-                    remaining--
+                if (count >= 0) {
+                    if (warmupClicks > 0 && totalClicks <= warmupClicks) {
+                        // 暖機期間不扣次數
+                    } else {
+                        remaining--
+                    }
                 }
                 updateRemaining()
-                appContext?.let { ClickNotification.showRunning(it, "剩餘 ${remainingDisplay}") }
+                if (notifyEvery > 0 && totalClicks % notifyEvery == 0) {
+                    appContext?.let { ClickNotification.showRunning(it, "已點 $totalClicks") }
+                } else if (notifyEvery == 0) {
+                    appContext?.let { ClickNotification.showRunning(it, "剩餘 ${remainingDisplay}") }
+                }
 
                 if (isRunning) {
                     var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs

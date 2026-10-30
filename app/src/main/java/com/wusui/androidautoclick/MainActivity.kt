@@ -609,6 +609,10 @@ fun ClickDetail(
         ToggleRow("雙擊", ClickController.doubleTap) {
             ClickController.doubleTap = it
         }
+        CycleRow("通知每 N", if (ClickController.notifyEvery == 0) "每次" else ClickController.notifyEvery.toString(),
+            listOf("每次", "10", "50", "100")) { v ->
+            ClickController.notifyEvery = if (v == "每次") 0 else v.toInt()
+        }
         CycleRow("記錄每 N", ClickController.logEvery.toString(), listOf(1, 5, 10, 50).map { it.toString() }) { v ->
             ClickController.logEvery = v.toInt()
         }
