@@ -542,8 +542,16 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.1.0") {}
+        SettingsStatusRow("版本", "0.2.0") {}
         SettingsStatusRow("授權", "MIT") {}
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "功能") {
+        SettingsStatusRow("連點引擎", "已實作") {}
+        SettingsStatusRow("懸浮窗", "已實作") {}
+        SettingsStatusRow("序列回放", "已實作") {}
     }
 
     Spacer(Modifier.height(8.dp))
