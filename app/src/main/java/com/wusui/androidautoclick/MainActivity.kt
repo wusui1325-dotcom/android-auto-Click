@@ -563,6 +563,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("水平鏡像", ClickController.mirrorX) {
+            ClickController.mirrorX = it
+        }
         ToggleRow("停止需確認", ClickController.confirmStop) {
             ClickController.confirmStop = it
         }

@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var confirmStop: Boolean = false
+    var mirrorX: Boolean = false // 水平鏡像座標
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -126,6 +126,10 @@ object ClickController {
 
                 val usePoints = if (mode == "多點" && points.size > 1) points else listOf(points.first())
                 var (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
+                if (mirrorX) {
+                    val dm = appContext?.resources?.displayMetrics
+                    if (dm != null) x = dm.widthPixels - x
+                }
                 if (randomOffset || humanize) {
                     val range = if (humanize) 3 else 8
                     x += (kotlin.random.Random.nextInt(-range, range + 1)).toFloat()
