@@ -31,20 +31,22 @@ object ClickNotification {
                 return
             }
         }
-        ensureChannel(context)
-        val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val n = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(context, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(context)
-        }
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("AutoClick")
-            .setContentText(text)
-            .setOngoing(true)
-            .build()
-        mgr.notify(NOTIFY_ID, n)
+        try {
+            ensureChannel(context)
+            val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val n = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(context, CHANNEL_ID)
+            } else {
+                @Suppress("DEPRECATION")
+                Notification.Builder(context)
+            }
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle("AutoClick")
+                .setContentText(text)
+                .setOngoing(true)
+                .build()
+            mgr.notify(NOTIFY_ID, n)
+        } catch (_: Exception) {}
     }
 
     fun cancel(context: Context) {
