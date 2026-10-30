@@ -155,7 +155,8 @@ object SequenceRecorder {
             }
             replayIndex = 0
         }
-        val step = steps[replayIndex++]
+        val step = steps.getOrNull(replayIndex) ?: return
+        replayIndex++
         when (step.type) {
             "click" -> service.performClick(step.x, step.y, ClickController.durationMs)
             "swipe" -> service.performSwipe(step.x, step.y, step.x2, step.y2, step.delayMs)
