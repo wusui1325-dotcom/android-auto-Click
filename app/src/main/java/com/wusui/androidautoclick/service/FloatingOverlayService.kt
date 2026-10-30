@@ -65,7 +65,7 @@ class FloatingOverlayService : Service() {
         val button = TextView(this).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
             gravity = android.view.Gravity.CENTER
-            text = "▶"
+            text = if (ClickController.isRunning) "■" else "▶"
             setTextColor(Color.parseColor("#F5F5F7"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             background = GradientDrawable().apply {

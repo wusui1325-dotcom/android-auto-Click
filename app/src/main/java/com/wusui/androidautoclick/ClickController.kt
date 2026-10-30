@@ -13,7 +13,16 @@ object ClickController {
     var intervalMs: Long = 200
     var durationMs: Long = 50
     var count: Int = -1 // -1 = 無限
-    var points: List<Pair<Float, Float>> = listOf(540f to 960f)
+    var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
+
+    fun addPoint(x: Float, y: Float) {
+        points.add(x to y)
+    }
+
+    fun clearPoints() {
+        points.clear()
+        points.add(540f to 960f)
+    }
 
     var isRunning: Boolean = false
         private set

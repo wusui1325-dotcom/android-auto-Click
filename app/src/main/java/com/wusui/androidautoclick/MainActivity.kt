@@ -420,10 +420,12 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "座標") {
-        SettingsStatusRow("點 1", "540, 960") {}
-        SettingsStatusRow("點 2", "未設定") {}
-        SettingsStatusRow("點 3", "未設定") {}
-        SettingsStatusRow("新增點", "") {}
+        SettingsStatusRow("點 1", pointsText(0)) {}
+        SettingsStatusRow("點 2", pointsText(1)) {}
+        SettingsStatusRow("點 3", pointsText(2)) {}
+        SettingsStatusRow("新增點", "") {
+            ClickController.addPoint(540f, 960f)
+        }
     }
 
     Spacer(Modifier.height(8.dp))
@@ -519,8 +521,10 @@ fun AboutDetail() {
     Caption("極簡、免廣告、高對比的自動點擊工具。")
 }
 
-@Composable
-fun DetailTitle(text: String) {
+private fun pointsText(index: Int): String {
+    val p = ClickController.points.getOrNull(index) ?: return "未設定"
+    return "${p.first.toInt()}, ${p.second.toInt()}"
+}
     Text(
         text,
         style = TextStyle(
