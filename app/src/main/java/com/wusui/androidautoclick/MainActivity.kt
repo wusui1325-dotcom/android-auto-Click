@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import android.content.Intent
 import com.wusui.androidautoclick.service.FloatingOverlayService
+import com.wusui.androidautoclick.ClickController
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -95,6 +96,13 @@ fun AppShell() {
     var opacity by remember { mutableStateOf(90) }
     var floatSize by remember { mutableStateOf("中") }
 
+    // 初始化控制器預設值
+    LaunchedEffect(Unit) {
+        ClickController.intervalMs = interval.toLong()
+        ClickController.durationMs = duration.toLong()
+        ClickController.count = if (count == "無限") -1 else count.toIntOrNull() ?: -1
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -136,11 +144,20 @@ fun AppShell() {
                     clickMode = clickMode,
                     onClickMode = { clickMode = it },
                     interval = interval,
-                    onInterval = { interval = it },
+                    onInterval = { v ->
+                        interval = v
+                        ClickController.intervalMs = v.toLong()
+                    },
                     count = count,
-                    onCount = { count = it },
+                    onCount = { v ->
+                        count = v
+                        ClickController.count = if (v == "無限") -1 else v.toIntOrNull() ?: -1
+                    },
                     duration = duration,
-                    onDuration = { duration = it },
+                    onDuration = { v ->
+                        duration = v
+                        ClickController.durationMs = v.toLong()
+                    },
                     randomOffset = randomOffset,
                     onRandomOffset = { randomOffset = it },
                     randomInterval = randomInterval,

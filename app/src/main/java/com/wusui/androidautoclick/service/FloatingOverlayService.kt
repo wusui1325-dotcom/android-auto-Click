@@ -13,7 +13,7 @@ import android.widget.TextView
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
-import android.view.ViewGroup
+import com.wusui.androidautoclick.ClickController
 
 /**
  * 可拖曳的懸浮控制按鈕。
@@ -102,10 +102,10 @@ class FloatingOverlayService : Service() {
     }
 
     private fun toggleClicking() {
-        isClicking = !isClicking
+        ClickController.toggle()
+        isClicking = ClickController.isRunning
         val button = (overlayView as? FrameLayout)?.getChildAt(0) as? TextView
         button?.text = if (isClicking) "■" else "▶"
-        // 後續可在此呼叫 ClickAccessibilityService.performContinuousClick
     }
 
     private fun setupDrag(container: View, button: View, params: WindowManager.LayoutParams) {
