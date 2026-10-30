@@ -27,19 +27,23 @@ object ClickEngine {
     private var generation = 0
     private var remaining = 0
     private var pointIndex = 0
-    private var startTimeMs = 0L
     private var lastStampMs = 0L
     private var replayIndex = 0
     private var currentLoop = 0
+    private var consecutiveFails = 0
 
     fun start(): Boolean {
         if (_status.value.running || _status.value.replaying) return true
+        if (_status.value.recording) {
+            setError("請先停止錄製再開始執行")
+            return false
+        }
         val cfg = SettingsRepository.config.value
         val points = SettingsRepository.points.value
         val steps = SettingsRepository.sequenceSteps.value
         val service = ClickAccessibilityService.instance
         if (service == null) {
-            setError("請先開啟無障礙服務")
+            setError("請先開啟無障礙服務（權限頁）")
             return false
         }
         when (cfg.mode) {
@@ -48,7 +52,7 @@ object ClickEngine {
                 return false
             }
             ClickMode.SEQUENCE -> if (steps.isEmpty()) {
-                setError("序列為空，請先錄製或新增步驟")
+                setError("序列為空，請先錄製或用標記手動建步")
                 return false
             }
             else -> if (points.isEmpty()) {
@@ -62,7 +66,7 @@ object ClickEngine {
         pointIndex = 0
         replayIndex = 0
         currentLoop = 0
-        startTimeMs = System.currentTimeMillis()
+        consecutiveFails = 0
         dispatcher.reset()
         _status.value = EngineStatus(
             running = cfg.mode != ClickMode.SEQUENCE,
@@ -86,17 +90,13 @@ object ClickEngine {
         generation++
         dispatcher.reset()
         main.removeCallbacksAndMessages(null)
-        val was = _status.value
+        consecutiveFails = 0
         _status.update {
             it.copy(
                 running = false,
                 replaying = false,
-                recording = false,
                 remaining = remainingLabel()
             )
-        }
-        if (was.recording) {
-            // keep steps; just stop recording flag
         }
         SettingsRepository.appContext?.let { ClickNotification.cancel(it) }
     }
@@ -111,15 +111,26 @@ object ClickEngine {
 
     // ── Recording ──────────────────────────────────────────────
 
-    fun startRecording(clear: Boolean = true) {
+    fun startRecording(clear: Boolean = true): Boolean {
+        if (_status.value.running || _status.value.replaying) {
+            setError("請先停止執行再錄製")
+            return false
+        }
+        if (ClickAccessibilityService.instance == null) {
+            setError("請先開啟無障礙服務才能錄製")
+            return false
+        }
+        SettingsRepository.beginSequenceBatch()
         if (clear) SettingsRepository.clearSequenceSteps()
         lastStampMs = SystemClock.elapsedRealtime()
         _status.update { it.copy(recording = true, lastError = "") }
+        return true
     }
 
     fun stopRecording() {
+        if (!_status.value.recording) return
         _status.update { it.copy(recording = false) }
-        SettingsRepository.persistSequences()
+        SettingsRepository.endSequenceBatch()
     }
 
     fun recordClick(x: Float, y: Float) {
@@ -130,12 +141,41 @@ object ClickEngine {
         )
     }
 
+    fun recordSwipe(x1: Float, y1: Float, x2: Float, y2: Float) {
+        if (!_status.value.recording) return
+        val delay = resolveRecordDelay()
+        SettingsRepository.appendSequenceStep(
+            SequenceStep(
+                SequenceStep.StepType.SWIPE,
+                x = x1, y = y1, x2 = x2, y2 = y2, delayMs = delay
+            )
+        )
+    }
+
     fun recordWait(ms: Long) {
         if (!_status.value.recording) return
         SettingsRepository.appendSequenceStep(
             SequenceStep(SequenceStep.StepType.WAIT, delayMs = ms.coerceAtLeast(0))
         )
         lastStampMs = SystemClock.elapsedRealtime()
+    }
+
+    /** Build sequence steps from current marker points (manual UX for games). */
+    fun importPointsAsSequence(gapMs: Long = 300L) {
+        val pts = SettingsRepository.points.value
+        if (pts.isEmpty()) {
+            setError("沒有標記點可匯入")
+            return
+        }
+        val steps = pts.mapIndexed { i, p ->
+            SequenceStep(
+                SequenceStep.StepType.CLICK,
+                x = p.x, y = p.y,
+                delayMs = if (i == 0) 0L else gapMs.coerceAtLeast(0)
+            )
+        }
+        SettingsRepository.setSequenceSteps(steps)
+        _status.update { it.copy(lastError = "") }
     }
 
     private fun resolveRecordDelay(): Long {
@@ -177,9 +217,7 @@ object ClickEngine {
                 val dur = cfg.durationMs.coerceAtLeast(80)
                 dispatcher.swipe(service, x1, y1, x2, y2, dur) { ok ->
                     if (gen != generation) return@swipe
-                    if (!ok) {
-                        setError("手勢失敗"); stop(); return@swipe
-                    }
+                    if (!handleGestureResult(ok)) return@swipe
                     onActionDone(gen, cfg, points.size)
                     pointIndex = (pointIndex + 1) % (points.size - 1).coerceAtLeast(1)
                     scheduleNext(gen, cfg)
@@ -190,9 +228,7 @@ object ClickEngine {
                 val (x, y) = jitter(points[idx], cfg)
                 dispatcher.click(service, x, y, cfg.durationMs.coerceAtLeast(10)) { ok ->
                     if (gen != generation) return@click
-                    if (!ok) {
-                        setError("手勢失敗"); stop(); return@click
-                    }
+                    if (!handleGestureResult(ok)) return@click
                     onActionDone(gen, cfg, points.size)
                     pointIndex = (pointIndex + 1) % points.size
                     scheduleNext(gen, cfg)
@@ -202,9 +238,7 @@ object ClickEngine {
                 val (x, y) = jitter(points.first(), cfg)
                 dispatcher.click(service, x, y, cfg.durationMs.coerceAtLeast(10)) { ok ->
                     if (gen != generation) return@click
-                    if (!ok) {
-                        setError("手勢失敗"); stop(); return@click
-                    }
+                    if (!handleGestureResult(ok)) return@click
                     onActionDone(gen, cfg, 1)
                     scheduleNext(gen, cfg)
                 }
@@ -265,9 +299,7 @@ object ClickEngine {
                 SequenceStep.StepType.CLICK -> {
                     dispatcher.click(service, step.x, step.y, cfg.durationMs.coerceAtLeast(10)) { ok ->
                         if (gen != generation) return@click
-                        if (!ok) {
-                            setError("手勢失敗"); stop(); return@click
-                        }
+                        if (!handleGestureResult(ok)) return@click
                         _status.update { it.copy(totalActions = it.totalActions + 1, currentIndex = replayIndex - 1) }
                         playSequenceStep(gen)
                     }
@@ -278,9 +310,7 @@ object ClickEngine {
                         cfg.durationMs.coerceAtLeast(80)
                     ) { ok ->
                         if (gen != generation) return@swipe
-                        if (!ok) {
-                            setError("手勢失敗"); stop(); return@swipe
-                        }
+                        if (!handleGestureResult(ok)) return@swipe
                         _status.update { it.copy(totalActions = it.totalActions + 1, currentIndex = replayIndex - 1) }
                         playSequenceStep(gen)
                     }
@@ -288,6 +318,18 @@ object ClickEngine {
             }
         }
         if (gap > 0) main.postDelayed(run, gap) else run.run()
+    }
+
+    /** Returns false when the run was stopped due to failure. */
+    private fun handleGestureResult(ok: Boolean): Boolean {
+        if (ok) {
+            consecutiveFails = 0
+            return true
+        }
+        consecutiveFails++
+        setError("手勢失敗（觸控打斷或無障礙已斷）。已自動重試仍失敗。")
+        stop()
+        return false
     }
 
     // ── Helpers ────────────────────────────────────────────────

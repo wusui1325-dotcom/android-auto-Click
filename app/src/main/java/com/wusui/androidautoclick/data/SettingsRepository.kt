@@ -21,6 +21,9 @@ object SettingsRepository {
     var appContext: Context? = null
         private set
 
+    /** When true, sequence mutations stay in memory until [endSequenceBatch]. */
+    private var sequenceBatch = false
+
     private val _config = MutableStateFlow(EngineConfig())
     val config: StateFlow<EngineConfig> = _config.asStateFlow()
 
@@ -75,15 +78,21 @@ object SettingsRepository {
         persistPoints()
     }
 
+    /** Update points in memory; persist is debounced by caller (overlay drag). */
+    fun setPointsLive(list: List<ClickPoint>, persist: Boolean) {
+        _points.value = if (list.isEmpty()) listOf(ClickPoint(540f, 960f)) else list
+        if (persist) persistPoints()
+    }
+
     fun addPoint(x: Float, y: Float) {
         setPoints(_points.value + ClickPoint(x, y))
     }
 
-    fun updatePoint(index: Int, x: Float, y: Float) {
+    fun updatePoint(index: Int, x: Float, y: Float, persist: Boolean = true) {
         val list = _points.value.toMutableList()
         if (index !in list.indices) return
         list[index] = ClickPoint(x, y)
-        setPoints(list)
+        setPointsLive(list, persist)
     }
 
     fun removeLastPoint() {
@@ -96,19 +105,28 @@ object SettingsRepository {
         setPoints(listOf(ClickPoint(540f, 960f)))
     }
 
+    fun beginSequenceBatch() {
+        sequenceBatch = true
+    }
+
+    fun endSequenceBatch() {
+        sequenceBatch = false
+        persistSequences()
+    }
+
     fun appendSequenceStep(step: SequenceStep) {
         _sequenceSteps.update { it + step }
-        persistSequences()
+        if (!sequenceBatch) persistSequences()
     }
 
     fun setSequenceSteps(steps: List<SequenceStep>) {
         _sequenceSteps.value = steps
-        persistSequences()
+        if (!sequenceBatch) persistSequences()
     }
 
     fun clearSequenceSteps() {
         _sequenceSteps.value = emptyList()
-        persistSequences()
+        if (!sequenceBatch) persistSequences()
     }
 
     fun removeSequenceStep(index: Int) {
@@ -121,6 +139,7 @@ object SettingsRepository {
     fun moveSequenceStep(from: Int, to: Int) {
         val list = _sequenceSteps.value.toMutableList()
         if (from !in list.indices || to !in list.indices) return
+        if (from == to) return
         val item = list.removeAt(from)
         list.add(to, item)
         setSequenceSteps(list)
@@ -156,6 +175,10 @@ object SettingsRepository {
             .apply()
     }
 
+    fun persistPointsNow() {
+        persistPoints()
+    }
+
     private fun persistConfig() {
         val c = _config.value
         prefs?.edit()
@@ -188,15 +211,18 @@ object SettingsRepository {
         }
     }
 
+    private fun fmt(f: Float): String =
+        if (f == f.toInt().toFloat()) f.toInt().toString() else "%.1f".format(f)
+
     private fun encodeSteps(steps: List<SequenceStep>): String =
         steps.joinToString("\n") { s ->
             when (s.type) {
                 SequenceStep.StepType.CLICK ->
-                    "click ${s.x.toInt()} ${s.y.toInt()} ${s.delayMs}"
+                    "click ${fmt(s.x)} ${fmt(s.y)} ${s.delayMs}"
                 SequenceStep.StepType.WAIT ->
                     "wait ${s.delayMs}"
                 SequenceStep.StepType.SWIPE ->
-                    "swipe ${s.x.toInt()} ${s.y.toInt()} ${s.x2.toInt()} ${s.y2.toInt()} ${s.delayMs}"
+                    "swipe ${fmt(s.x)} ${fmt(s.y)} ${fmt(s.x2)} ${fmt(s.y2)} ${s.delayMs}"
             }
         }
 

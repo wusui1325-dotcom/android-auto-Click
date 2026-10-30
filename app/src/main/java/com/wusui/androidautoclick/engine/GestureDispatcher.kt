@@ -13,6 +13,9 @@ import java.util.ArrayDeque
  * any in-flight gesture is cancelled by the next one / user touch, so we never
  * overlap strokes. Coordinates are screen pixels; times are milliseconds
  * (GestureDescription docs).
+ *
+ * Soft-retry once on cancel (user finger / system interrupt) before reporting failure —
+ * improves reliability without masking hard dispatch failures.
  */
 class GestureDispatcher {
     private val main = Handler(Looper.getMainLooper())
@@ -22,7 +25,8 @@ class GestureDispatcher {
 
     private data class Queued(
         val gesture: GestureDescription,
-        val onDone: (Boolean) -> Unit
+        val onDone: (Boolean) -> Unit,
+        val retriesLeft: Int = 1
     )
 
     fun reset() {
@@ -39,7 +43,6 @@ class GestureDispatcher {
         durationMs: Long,
         onDone: (Boolean) -> Unit
     ) {
-        // CTS / platform guidance: tap duration around ViewConfiguration.getTapTimeout()
         val tapMin = ViewConfiguration.getTapTimeout().toLong().coerceAtLeast(10)
         val max = GestureDescription.getMaxGestureDuration()
         val dur = durationMs.coerceIn(tapMin, max)
@@ -75,7 +78,7 @@ class GestureDispatcher {
         onDone: (Boolean) -> Unit
     ) {
         main.post {
-            queue.addLast(Queued(gesture, onDone))
+            queue.addLast(Queued(gesture, onDone, retriesLeft = 1))
             pump(service)
         }
     }
@@ -99,12 +102,20 @@ class GestureDispatcher {
                 main.post {
                     if (gen != generation) return@post
                     busy = false
-                    next.onDone(false)
-                    pump(service)
+                    if (next.retriesLeft > 0) {
+                        // Soft retry after brief gap — finger / overlay often cancels once.
+                        queue.addFirst(next.copy(retriesLeft = next.retriesLeft - 1))
+                        main.postDelayed({
+                            if (gen != generation) return@postDelayed
+                            pump(service)
+                        }, 40)
+                    } else {
+                        next.onDone(false)
+                        pump(service)
+                    }
                 }
             }
         }
-        // Pass Handler so callbacks are delivered on main looper (official overload).
         val ok = try {
             service.dispatchGesture(next.gesture, cb, main)
         } catch (_: Exception) {
@@ -112,6 +123,7 @@ class GestureDispatcher {
         }
         if (!ok) {
             busy = false
+            // Hard failure (service dead / bad gesture) — do not retry.
             next.onDone(false)
             pump(service)
         }

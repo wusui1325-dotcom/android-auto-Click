@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wusui.androidautoclick.data.SettingsRepository
 import com.wusui.androidautoclick.service.OverlayService
 import com.wusui.androidautoclick.service.PermissionHelper
@@ -33,6 +37,17 @@ fun OverlayScreen(overlayGranted: Boolean) {
     val context = LocalContext.current
     val cfg by SettingsRepository.config.collectAsState()
     var running by remember { mutableStateOf(OverlayService.isRunning) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) {
+                running = OverlayService.isRunning
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
 
     fun startOverlay() {
         if (!PermissionHelper.canDrawOverlay(context)) {
@@ -59,13 +74,13 @@ fun OverlayScreen(overlayGranted: Boolean) {
         SettingsCard {
             SettingsRow("權限", trailing = if (overlayGranted) "已開" else "未開")
             SettingsRow("服務", trailing = if (running) "運行中" else "已停止")
-            SwitchRow("顯示標記點", "可拖曳調整座標", cfg.showMarkers) {
+            SwitchRow("顯示標記點", "可拖曳調整座標（中心點＝點擊點）", cfg.showMarkers) {
                 SettingsRepository.updateConfig { c -> c.copy(showMarkers = it) }
             }
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            "短按懸浮鈕：開始／停止。長按：展開選單。拖曳標記改座標（含異形屏校正）。",
+            "短按懸浮鈕：開始／停止。長按：展開選單（新增點／標記→序列／隱藏標記）。拖曳標記改座標，含異形屏校正。",
             color = AppColors.secondary(),
             fontSize = 12.sp
         )

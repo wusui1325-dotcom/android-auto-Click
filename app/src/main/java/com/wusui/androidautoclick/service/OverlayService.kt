@@ -14,6 +14,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -21,6 +22,13 @@ import android.widget.TextView
 import androidx.core.app.ServiceCompat
 import com.wusui.androidautoclick.data.SettingsRepository
 import com.wusui.androidautoclick.engine.ClickEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 
 /**
  * Floating control + draggable markers.
@@ -29,7 +37,6 @@ import com.wusui.androidautoclick.engine.ClickEngine
  * - TYPE_APPLICATION_OVERLAY (API 26+)
  * - FGS specialUse via ServiceCompat.startForeground + FOREGROUND_SERVICE_TYPE_SPECIAL_USE
  * - layoutInDisplayCutoutMode ALWAYS so overlay coords can match full screen pixels
- *   used by GestureDescription (screen pixels)
  * - setFitInsetsTypes(0) so the window is not fitted away from system bars / cutout
  * - Marker screen position calibrated with getLocationOnScreen after first layout
  */
@@ -48,16 +55,24 @@ class OverlayService : Service() {
     private var controlParams: WindowManager.LayoutParams? = null
     private var expanded = false
     private val markers = mutableListOf<Pair<View, WindowManager.LayoutParams>>()
-    private val refreshHandler = Handler(Looper.getMainLooper())
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val persistHandler = Handler(Looper.getMainLooper())
-    /** screenY - layoutParams.y for view top edge (status/cutout OEM delta). */
     private var layoutToScreenOffsetY = 0
     private var offsetCalibrated = false
+    private var lastGlyph = ""
+    private var scope: CoroutineScope? = null
+    private var observeJob: Job? = null
+    private var markersDirty = true
+    private var draggingMarker = false
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
             updateCollapsedGlyph()
-            refreshHandler.postDelayed(this, 400)
+            if (markersDirty && !draggingMarker) {
+                markersDirty = false
+                refreshMarkers()
+            }
+            mainHandler.postDelayed(this, 350)
         }
     }
 
@@ -67,12 +82,26 @@ class OverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         isRunning = true
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         startAsForeground()
+        observeRepo()
+    }
+
+    private fun observeRepo() {
+        observeJob?.cancel()
+        observeJob = scope?.launch {
+            combine(
+                SettingsRepository.points,
+                SettingsRepository.config
+            ) { pts, cfg -> pts to cfg.showMarkers }
+                .collect {
+                    markersDirty = true
+                }
+        }
     }
 
     private fun startAsForeground() {
         val notification = ClickNotification.buildOverlayKeepAlive(this)
-        // Official: ServiceCompat.startForeground with typed FGS (core 1.12+)
         ServiceCompat.startForeground(
             this,
             ClickNotification.OVERLAY_NOTIFY_ID,
@@ -107,18 +136,13 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            // Floating overlay needs full-screen pixel space so marker centers == gesture coords
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // ALWAYS is preferred for cutout-edge overlays when available (API 30+)
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Do not fit away from system bars — keep layout origin aligned to screen
                 setFitInsetsTypes(0)
             }
         }
@@ -139,13 +163,12 @@ class OverlayService : Service() {
                 view.getLocationOnScreen(loc)
                 layoutToScreenOffsetY = loc[1] - params.y
                 offsetCalibrated = true
-                refreshMarkers()
+                markersDirty = true
             } catch (_: Exception) {
             }
         }
     }
 
-    /** Current screen size in pixels (WindowMetrics on R+, else DisplayMetrics). */
     fun screenSize(): Pair<Int, Int> {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val bounds = windowManager.currentWindowMetrics.bounds
@@ -159,7 +182,7 @@ class OverlayService : Service() {
 
     private fun showControl() {
         if (controlView != null) {
-            refreshMarkers()
+            markersDirty = true
             return
         }
         if (!android.provider.Settings.canDrawOverlays(this)) {
@@ -168,9 +191,9 @@ class OverlayService : Service() {
             return
         }
         rebuildControl()
-        refreshMarkers()
-        refreshHandler.removeCallbacks(refreshRunnable)
-        refreshHandler.post(refreshRunnable)
+        markersDirty = true
+        mainHandler.removeCallbacks(refreshRunnable)
+        mainHandler.post(refreshRunnable)
     }
 
     private fun rebuildControl() {
@@ -183,7 +206,18 @@ class OverlayService : Service() {
             x = controlParams?.x ?: dp(16)
             y = controlParams?.y ?: dp(120)
         }
-        setupDrag(container, params)
+        setupDragOrTap(container, params, onTap = {
+            if (expanded) {
+                // taps handled by child buttons
+            } else {
+                toggleClicking()
+            }
+        }, onLongPress = {
+            if (!expanded) {
+                expanded = true
+                rebuildControl()
+            }
+        })
         try {
             windowManager.addView(container, params)
             controlView = container
@@ -194,24 +228,20 @@ class OverlayService : Service() {
 
     private fun buildCollapsed(): View {
         val size = dp(56)
+        lastGlyph = glyph()
         val btn = TextView(this).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
             gravity = Gravity.CENTER
-            text = glyph()
+            text = lastGlyph
             setTextColor(Color.parseColor("#F5F5F7"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             background = ovalBg()
             tag = "glyph"
-            setOnClickListener { toggleClicking() }
+            // Clicks go through parent drag/tap handler → performClick path.
+            isClickable = false
+            isFocusable = false
         }
-        val wrap = FrameLayout(this)
-        wrap.addView(btn)
-        wrap.setOnLongClickListener {
-            expanded = true
-            rebuildControl()
-            true
-        }
-        return wrap
+        return FrameLayout(this).apply { addView(btn) }
     }
 
     private fun glyph(): String {
@@ -224,7 +254,10 @@ class OverlayService : Service() {
         val root = controlView as? FrameLayout ?: return
         val tv = root.findViewWithTag<TextView>("glyph") ?: return
         val next = glyph()
-        if (tv.text.toString() != next) tv.text = next
+        if (tv.text.toString() != next) {
+            lastGlyph = next
+            tv.text = next
+        }
     }
 
     private fun buildExpanded(): View {
@@ -254,16 +287,19 @@ class OverlayService : Service() {
         addBtn("新增點") {
             val (w, h) = screenSize()
             SettingsRepository.addPoint(w / 2f, h / 2f)
-            refreshMarkers()
+            markersDirty = true
         }
         addBtn("刪除最後") {
             SettingsRepository.removeLastPoint()
-            refreshMarkers()
+            markersDirty = true
+        }
+        addBtn("標記→序列步") {
+            ClickEngine.importPointsAsSequence(300)
         }
         val show = SettingsRepository.config.value.showMarkers
         addBtn(if (show) "隱藏標記" else "顯示標記") {
             SettingsRepository.updateConfig { it.copy(showMarkers = !it.showMarkers) }
-            refreshMarkers()
+            markersDirty = true
             rebuildControl()
         }
         addBtn("收起") {
@@ -278,18 +314,18 @@ class OverlayService : Service() {
         markers.clear()
         if (!SettingsRepository.config.value.showMarkers) return
         SettingsRepository.points.value.forEachIndexed { i, p ->
-            addMarker(p.x, p.y, "${i + 1}") { nx, ny ->
-                SettingsRepository.updatePoint(i, nx, ny)
-            }
+            addMarker(p.x, p.y, "${i + 1}", i)
         }
     }
 
     private fun schedulePersist() {
         persistHandler.removeCallbacksAndMessages(null)
-        persistHandler.postDelayed({ /* updatePoint already persists */ }, 300)
+        persistHandler.postDelayed({
+            SettingsRepository.persistPointsNow()
+        }, 280)
     }
 
-    private fun addMarker(x: Float, y: Float, label: String, onMove: (Float, Float) -> Unit) {
+    private fun addMarker(x: Float, y: Float, label: String, index: Int) {
         val size = dp(36)
         val tv = TextView(this).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
@@ -311,21 +347,26 @@ class OverlayService : Service() {
         tv.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    draggingMarker = true
                     ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     params.x = ix + (e.rawX - tx).toInt()
                     params.y = iy + (e.rawY - ty).toInt()
                     try { windowManager.updateViewLayout(tv, params) } catch (_: Exception) {}
-                    // rawX/rawY are absolute screen coords — same space as GestureDescription
-                    onMove(e.rawX, e.rawY)
+                    // Always persist marker CENTER, not finger raw position.
+                    val cx = layoutToScreenX(params.x, size)
+                    val cy = layoutToScreenY(params.y, size)
+                    SettingsRepository.updatePoint(index, cx, cy, persist = false)
                     schedulePersist()
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    onMove(layoutToScreenX(params.x, size), layoutToScreenY(params.y, size))
-                    schedulePersist()
-                    false
+                    val cx = layoutToScreenX(params.x, size)
+                    val cy = layoutToScreenY(params.y, size)
+                    SettingsRepository.updatePoint(index, cx, cy, persist = true)
+                    draggingMarker = false
+                    true
                 }
                 else -> false
             }
@@ -338,26 +379,90 @@ class OverlayService : Service() {
         }
     }
 
-    private fun setupDrag(view: View, params: WindowManager.LayoutParams) {
-        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f; var moved = false
-        view.setOnTouchListener { _, e ->
+    /**
+     * Drag without swallowing taps / long-press.
+     * Bugfix: previous OnTouchListener returned true on DOWN and never called
+     * performClick, so short-press start/stop and long-press expand were dead.
+     */
+    private fun setupDragOrTap(
+        view: View,
+        params: WindowManager.LayoutParams,
+        onTap: () -> Unit,
+        onLongPress: () -> Unit
+    ) {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        val longTimeout = ViewConfiguration.getLongPressTimeout().toLong()
+        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f
+        var moved = false
+        var longFired = false
+        val longRunnable = Runnable {
+            if (!moved) {
+                longFired = true
+                onLongPress()
+            }
+        }
+        view.setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; moved = false; true
+                    ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY
+                    moved = false; longFired = false
+                    mainHandler.postDelayed(longRunnable, longTimeout)
+                    true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (e.rawX - tx).toInt()
                     val dy = (e.rawY - ty).toInt()
-                    if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) moved = true
-                    params.x = ix + dx
-                    params.y = iy + dy
-                    try { windowManager.updateViewLayout(view, params) } catch (_: Exception) {}
+                    if (kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop) {
+                        if (!moved) {
+                            moved = true
+                            mainHandler.removeCallbacks(longRunnable)
+                        }
+                        params.x = ix + dx
+                        params.y = iy + dy
+                        try { windowManager.updateViewLayout(v, params) } catch (_: Exception) {}
+                    }
                     true
                 }
-                MotionEvent.ACTION_UP -> !moved
+                MotionEvent.ACTION_UP -> {
+                    mainHandler.removeCallbacks(longRunnable)
+                    if (!moved && !longFired) {
+                        // Prefer child click if hit a clickable child (expanded menu).
+                        if (!dispatchClickToChild(v, e.rawX, e.rawY)) {
+                            onTap()
+                            if (!expanded) rebuildControl()
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    mainHandler.removeCallbacks(longRunnable)
+                    true
+                }
                 else -> false
             }
         }
+    }
+
+    private fun dispatchClickToChild(root: View, rawX: Float, rawY: Float): Boolean {
+        if (root !is android.view.ViewGroup) return false
+        val loc = IntArray(2)
+        for (i in 0 until root.childCount) {
+            val child = root.getChildAt(i)
+            if (!child.isShown) continue
+            child.getLocationOnScreen(loc)
+            val l = loc[0]; val t = loc[1]
+            val r = l + child.width; val b = t + child.height
+            if (rawX >= l && rawX < r && rawY >= t && rawY < b) {
+                if (child.hasOnClickListeners()) {
+                    child.performClick()
+                    return true
+                }
+                if (child is android.view.ViewGroup && dispatchClickToChild(child, rawX, rawY)) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun toggleClicking() {
@@ -366,7 +471,8 @@ class OverlayService : Service() {
     }
 
     private fun removeAll() {
-        refreshHandler.removeCallbacks(refreshRunnable)
+        mainHandler.removeCallbacks(refreshRunnable)
+        mainHandler.removeCallbacksAndMessages(null)
         persistHandler.removeCallbacksAndMessages(null)
         markers.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
         markers.clear()
@@ -375,6 +481,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        observeJob?.cancel()
+        scope?.cancel()
         removeAll()
         isRunning = false
         super.onDestroy()

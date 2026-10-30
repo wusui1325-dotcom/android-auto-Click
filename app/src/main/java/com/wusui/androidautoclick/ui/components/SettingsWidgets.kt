@@ -150,17 +150,25 @@ fun SwitchRow(title: String, subtitle: String? = null, checked: Boolean, onChang
 }
 
 @Composable
-fun NumberField(value: String, onChange: (String) -> Unit, suffix: String = "") {
+fun NumberField(
+    value: String,
+    onChange: (String) -> Unit,
+    suffix: String = "",
+    text: Boolean = false,
+    fieldWidth: Int = 72
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         BasicTextField(
             value = value,
             onValueChange = onChange,
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (text) KeyboardType.Text else KeyboardType.Number
+            ),
             textStyle = TextStyle(color = AppColors.text(), fontSize = 15.sp),
             cursorBrush = SolidColor(AppColors.text()),
             modifier = Modifier
-                .width(72.dp)
+                .width(fieldWidth.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(if (AppColors.isDark()) AppColors.circleDark else AppColors.circleLight)
                 .border(1.dp, AppColors.divider(), RoundedCornerShape(10.dp))
