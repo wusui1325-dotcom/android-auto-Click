@@ -168,6 +168,7 @@ object ClickController {
                     return
                 }
 
+                if (points.isEmpty()) { stop(); return }
                 val base = if (mode == "多點" && points.size > 1) points.toList() else listOf(points.first())
                 val usePoints = if (reversePoints) base.reversed() else base
                 val idx = if (randomPoint && usePoints.size > 1) kotlin.random.Random.nextInt(usePoints.size) else pointIndex % usePoints.size
