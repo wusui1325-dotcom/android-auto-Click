@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var reversePoints: Boolean = false // 多點反向
+    var pingPong: Boolean = false // 多點來回
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -86,6 +86,8 @@ object ClickController {
     private var runnable: Runnable? = null
     private var remaining: Int = 0
     private var pointIndex = 0
+
+    private var pingDir = 1
 
     fun start(): Boolean {
         if (isRunning) return true
@@ -177,7 +179,15 @@ object ClickController {
                 if (logClicks) addLog("點擊 ${x.toInt()},${y.toInt()}")
 
                 if (usePoints.size > 1) {
-                    pointIndex = (pointIndex + 1) % usePoints.size
+                    if (pingPong) {
+                        pointIndex += pingDir
+                        if (pointIndex >= usePoints.size || pointIndex < 0) {
+                            pingDir = -pingDir
+                            pointIndex = (pointIndex + pingDir).coerceIn(0, usePoints.size - 1)
+                        }
+                    } else {
+                        pointIndex = (pointIndex + 1) % usePoints.size
+                    }
                     currentPointIndex = pointIndex
                 }
                 if (count >= 0 && warmupClicks > 0 && totalClicks <= warmupClicks) {

@@ -619,6 +619,9 @@ fun ClickDetail(
             ClickController.humanize = it
         }
         ToggleRow("隨機偏移", randomOffset) { onRandomOffset(it) }
+        ToggleRow("來回", ClickController.pingPong) {
+            ClickController.pingPong = it
+        }
         ToggleRow("多點反向", ClickController.reversePoints) {
             ClickController.reversePoints = it
         }
