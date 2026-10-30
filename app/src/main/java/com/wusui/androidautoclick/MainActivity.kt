@@ -227,11 +227,11 @@ fun AppShell() {
                 targetState = selected,
                 transitionSpec = {
                     if (targetState != null) {
-                        slideInHorizontally { it } + fadeIn() togetherWith
-                            slideOutHorizontally { -it / 3 } + fadeOut()
+                        slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(150)) { it } + fadeIn(androidx.compose.animation.core.tween(150)) togetherWith
+                            slideOutHorizontally(animationSpec = androidx.compose.animation.core.tween(150)) { -it / 3 } + fadeOut(androidx.compose.animation.core.tween(100))
                     } else {
-                        slideInHorizontally { -it / 3 } + fadeIn() togetherWith
-                            slideOutHorizontally { it } + fadeOut()
+                        slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(150)) { -it / 3 } + fadeIn(androidx.compose.animation.core.tween(150)) togetherWith
+                            slideOutHorizontally(animationSpec = androidx.compose.animation.core.tween(150)) { it } + fadeOut(androidx.compose.animation.core.tween(100))
                     }
                 },
                 label = "nav"
