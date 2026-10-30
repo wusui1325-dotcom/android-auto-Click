@@ -425,7 +425,10 @@ fun PermissionsDetail(
     }
 
     Spacer(Modifier.height(12.dp))
-    Caption("無障礙服務用於在其他應用中執行點擊，必須在系統設定中手動開啟。懸浮窗用於浮動控制面板。")
+    Caption(
+        if (accessibilityOn && overlayOn) "權限已就緒，可開始使用。"
+        else "無障礙服務用於在其他應用中執行點擊，必須在系統設定中手動開啟。懸浮窗用於浮動控制面板。"
+    )
 }
 
 @Composable
