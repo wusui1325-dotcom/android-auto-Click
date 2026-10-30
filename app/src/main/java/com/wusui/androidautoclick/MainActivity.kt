@@ -920,7 +920,7 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "1.4.1") {}
+        SettingsStatusRow("版本", "1.4.2") {}
         SettingsStatusRow("建置", "優化版") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
