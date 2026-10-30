@@ -620,7 +620,7 @@ fun OverlayDetail(
     }
 
     Spacer(Modifier.height(12.dp))
-    Caption("浮動控制面板將在懸浮窗權限開啟後可用。")
+    Caption("單擊開始／停止點擊。雙擊回放序列。長按切換錄製。")
 }
 
 @Composable
