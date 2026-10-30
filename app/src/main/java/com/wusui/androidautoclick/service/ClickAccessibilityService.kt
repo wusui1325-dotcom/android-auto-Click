@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
+import com.wusui.androidautoclick.SequenceRecorder
 import android.os.Handler
 import android.os.Looper
 
@@ -31,7 +32,16 @@ class ClickAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // 殼階段暫不處理事件，後續可監聽特定視窗
+        if (event == null || !SequenceRecorder.isRecording) return
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            val node = event.source ?: return
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            val x = rect.centerX().toFloat()
+            val y = rect.centerY().toFloat()
+            SequenceRecorder.addClick(x, y, com.wusui.androidautoclick.ClickController.intervalMs)
+            node.recycle()
+        }
     }
 
     override fun onInterrupt() {}

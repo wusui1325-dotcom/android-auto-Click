@@ -506,6 +506,25 @@ fun SequenceDetail() {
 
     Spacer(Modifier.height(8.dp))
 
+    SettingsSection(label = "目前步驟") {
+        if (SequenceRecorder.steps.isEmpty()) {
+            SettingsStatusRow("尚無步驟", "") {}
+        } else {
+            SequenceRecorder.steps.forEachIndexed { i, step ->
+                val label = when (step.type) {
+                    "click" -> "點擊 ${step.x.toInt()},${step.y.toInt()}"
+                    "wait" -> "等待 ${step.delayMs}ms"
+                    else -> step.type
+                }
+                SettingsStatusRow("$i $label", "") {
+                    SequenceRecorder.removeAt(i)
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
     SettingsSection(label = "已儲存") {
         if (SequenceRecorder.saved.isEmpty()) {
             SettingsStatusRow("尚無序列", "") {}

@@ -45,10 +45,16 @@ object SequenceRecorder {
         steps.add(Step("wait", delayMs = ms))
     }
 
-    fun clear() {
-        steps.clear()
-        isRecording = false
-        stopReplay()
+    fun removeAt(index: Int) {
+        if (index in steps.indices) steps.removeAt(index)
+    }
+
+    fun moveUp(index: Int) {
+        if (index > 0 && index < steps.size) {
+            val tmp = steps[index]
+            steps[index] = steps[index - 1]
+            steps[index - 1] = tmp
+        }
     }
 
     fun save(name: String) {
