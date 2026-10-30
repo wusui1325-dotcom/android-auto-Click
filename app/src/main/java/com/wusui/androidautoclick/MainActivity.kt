@@ -660,8 +660,11 @@ fun SequenceDetail() {
                 }
             }
         }
-        SettingsStatusRow("新建序列", "") {
-            SequenceRecorder.start()
+        SettingsStatusRow("複製目前為新序列", "") {
+            SequenceRecorder.duplicateCurrent("副本 ${SequenceRecorder.saved.size + 1}")
+        }
+        SettingsStatusRow("清空已儲存", "") {
+            SequenceRecorder.clearSaved()
         }
     }
 

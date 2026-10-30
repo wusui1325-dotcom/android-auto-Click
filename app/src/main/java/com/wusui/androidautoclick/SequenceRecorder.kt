@@ -58,7 +58,11 @@ object SequenceRecorder {
         }
     }
 
-    fun save(name: String) {
+    fun clearSaved() {
+        saved.clear()
+    }
+
+    fun duplicateCurrent(name: String) {
         if (steps.isEmpty()) return
         saved[name] = steps.toList()
     }
