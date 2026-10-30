@@ -529,7 +529,7 @@ fun ClickDetail(
                 else -> "停止"
             }
         ) {
-            ClickController.toggle()
+            if (ClickAccessibilityService.isEnabled()) ClickController.toggle()
         }
         SettingsStatusRow("總點擊", ClickController.totalClicks.toString()) {
             ClickController.resetTotal()

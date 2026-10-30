@@ -158,6 +158,7 @@ object ClickController {
                 if (count >= 0 && remaining <= 0) { stop(); return }
                 if (maxMinutes > 0 && elapsedSec() >= maxMinutes * 60L) { stop(); return }
                 if (stopAtTotal > 0 && totalClicks >= stopAtTotal) { stop(); return }
+                if (ClickAccessibilityService.instance == null) { lastError = "無障礙服務已斷開"; stop(); return }
                 if (onlyEven && totalClicks % 2 == 1) { handler.postDelayed(this, intervalMs); return }
                 if (onlyOdd && totalClicks % 2 == 0) { handler.postDelayed(this, intervalMs); return }
                 if (skipEvery > 0 && totalClicks % skipEvery == 0 && totalClicks > 0) {
