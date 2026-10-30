@@ -531,6 +531,11 @@ fun SequenceDetail() {
             val text = SequenceRecorder.exportText()
             android.util.Log.d("AutoClick", text.ifEmpty { "(empty)" })
         }
+        SettingsStatusRow("上移最後一步", "") {
+            if (SequenceRecorder.steps.isNotEmpty()) {
+                SequenceRecorder.moveUp(SequenceRecorder.steps.lastIndex)
+            }
+        }
         SettingsStatusRow("清空目前", "") {
             SequenceRecorder.clear()
         }
