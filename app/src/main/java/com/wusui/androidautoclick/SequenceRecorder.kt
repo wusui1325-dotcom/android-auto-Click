@@ -58,8 +58,10 @@ object SequenceRecorder {
         }
     }
 
-    fun shuffle() {
-        steps.shuffle()
+    fun duplicateStep(index: Int) {
+        if (index in steps.indices) {
+            steps.add(index + 1, steps[index])
+        }
     }
 
     fun duplicateCurrent(name: String) {

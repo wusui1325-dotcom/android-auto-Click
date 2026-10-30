@@ -651,6 +651,11 @@ fun SequenceDetail() {
             val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
             SequenceRecorder.importText(text)
         }
+        SettingsStatusRow("複製最後一步", "") {
+            if (SequenceRecorder.steps.isNotEmpty()) {
+                SequenceRecorder.duplicateStep(SequenceRecorder.steps.lastIndex)
+            }
+        }
         SettingsStatusRow("打亂步驟", "") {
             SequenceRecorder.shuffle()
         }
