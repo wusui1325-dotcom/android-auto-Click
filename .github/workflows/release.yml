@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -42,10 +44,31 @@ jobs:
           echo "keyPassword=android" >> local.properties
           echo "keyAlias=release" >> local.properties
           echo "storeFile=../release.keystore" >> local.properties
-          gradle assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
-      - name: Upload release APK
+      - name: Prepare APK
+        id: apk
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          cp "$APK" android-auto-Click-release.apk
+          echo "apk=android-auto-Click-release.apk" >> $GITHUB_OUTPUT
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts || echo "1.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}-$(date +%Y%m%d%H%M)" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app/build/outputs/apk/release/*.apk
+          name: android-auto-Click-release
+          path: android-auto-Click-release.apk
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.apk.outputs.tag }}
+          name: android-auto-Click ${{ steps.apk.outputs.version }}
+          files: android-auto-Click-release.apk
+          generate_release_notes: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
