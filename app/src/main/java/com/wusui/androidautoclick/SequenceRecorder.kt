@@ -58,10 +58,8 @@ object SequenceRecorder {
         }
     }
 
-    fun duplicateStep(index: Int) {
-        if (index in steps.indices) {
-            steps.add(index + 1, steps[index])
-        }
+    fun trimTo(max: Int) {
+        while (steps.size > max) steps.removeAt(steps.lastIndex)
     }
 
     fun duplicateCurrent(name: String) {

@@ -657,6 +657,9 @@ fun SequenceDetail() {
             val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
             SequenceRecorder.importText(text)
         }
+        SettingsStatusRow("保留前 10 步", "") {
+            SequenceRecorder.trimTo(10)
+        }
         SettingsStatusRow("複製最後一步", "") {
             if (SequenceRecorder.steps.isNotEmpty()) {
                 SequenceRecorder.duplicateStep(SequenceRecorder.steps.lastIndex)
