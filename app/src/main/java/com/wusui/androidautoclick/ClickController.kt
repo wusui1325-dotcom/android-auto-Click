@@ -21,8 +21,18 @@ object ClickController {
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
 
-    var totalClicks: Int = 0
+    var isPaused: Boolean = false
         private set
+
+    fun pause() {
+        isPaused = true
+        addLog("暫停")
+    }
+
+    fun resume() {
+        isPaused = false
+        addLog("繼續")
+    }
 
     fun elapsedSec(): Long = if (isRunning) (System.currentTimeMillis() - startTimeMs) / 1000 else 0
     var remainingDisplay: String = ""
@@ -83,6 +93,10 @@ object ClickController {
         runnable = object : Runnable {
             override fun run() {
                 if (!isRunning) return
+                if (isPaused) {
+                    handler.postDelayed(this, 200)
+                    return
+                }
                 if (count >= 0 && remaining <= 0) {
                     stop()
                     return

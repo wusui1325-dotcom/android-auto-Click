@@ -452,6 +452,9 @@ fun ClickDetail(
             ClickController.toggle()
         }
         SettingsStatusRow("總點擊", ClickController.totalClicks.toString()) {}
+        SettingsStatusRow("暫停／繼續", if (ClickController.isPaused) "已暫停" else "") {
+            if (ClickController.isPaused) ClickController.resume() else ClickController.pause()
+        }
         SettingsStatusRow("單次測試", "") {
             val p = ClickController.points.firstOrNull() ?: return@SettingsStatusRow
             ClickAccessibilityService.instance?.performClick(p.first, p.second, ClickController.durationMs)
