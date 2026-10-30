@@ -4,7 +4,7 @@
     <!-- 懸浮窗（浮動控制面板） -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- 前台服務（長時間運行點擊任務時建議） -->
+    <!-- 前台服務（懸浮窗保活） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
@@ -43,10 +43,15 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- 懸浮窗服務 -->
+        <!-- 懸浮窗服務：前台 specialUse 保活 -->
         <service
             android:name=".service.FloatingOverlayService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keep floating control overlay alive while auto-click is armed" />
+        </service>
 
     </application>
 </manifest>

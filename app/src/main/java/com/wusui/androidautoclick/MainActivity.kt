@@ -765,13 +765,13 @@ fun SequenceDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "錄製") {
-        SettingsStatusRow("開始錄製", if (recording) "錄製中" else "") { SequenceRecorder.start() }
+        SettingsStatusRow("開始錄製", if (recording) "錄製中 · 真實間隔" else "") { SequenceRecorder.start() }
         SettingsStatusRow("加入測試點", "") {
-            SequenceRecorder.addClick(540f, 960f, ClickController.intervalMs)
+            SequenceRecorder.addClick(540f, 960f) // 真實時間戳間隔
         }
         SettingsStatusRow("加入等待 500ms", "") { SequenceRecorder.addWait(500) }
         SettingsStatusRow("加入測試滑動", "") {
-            SequenceRecorder.addSwipe(400f, 1200f, 400f, 400f, 300)
+            SequenceRecorder.addSwipe(400f, 1200f, 400f, 400f)
         }
         SettingsStatusRow("停止並儲存", "${SequenceRecorder.steps.size} 步") {
             SequenceRecorder.stop()
@@ -845,7 +845,7 @@ fun SequenceDetail() {
     }
 
     Spacer(Modifier.height(12.dp))
-    Caption("目前 ${steps.size} 步。點擊步驟可刪除。錄製依賴無障礙點擊事件（遊戲自繪畫面可能錄不到）。")
+    Caption("目前 ${steps.size} 步。步間間隔取真實時間戳。錄製僅能收到無障礙 VIEW_CLICKED（系統／原生控件）；遊戲自繪／OpenGL 畫面通常錄不到，請改用手點「加入測試點／滑動」或匯入文字。點擊步驟可刪除。重開 App 會還原目前步驟與已儲存序列。")
 }
 
 @Composable
@@ -862,7 +862,10 @@ fun OverlayDetail(
     SettingsSection(label = "顯示") {
         SettingsStatusRow("狀態", if (overlayOn) "權限已開" else "未授權", onOpenOverlay)
         ToggleRow("浮動按鈕", floatButton) { onFloatButton(it) }
-        ToggleRow("顯示標記點", ClickController.showMarkers) { ClickController.showMarkers = it }
+        ToggleRow("顯示標記點", ClickController.showMarkers) {
+            ClickController.showMarkers = it
+            SettingsStore.save()
+        }
         ToggleRow("懸浮窗顯示座標", ClickController.showCoordsOnOverlay) {
             ClickController.showCoordsOnOverlay = it
         }

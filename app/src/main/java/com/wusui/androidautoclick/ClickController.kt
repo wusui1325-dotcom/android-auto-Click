@@ -119,39 +119,59 @@ object ClickController {
 
     fun addPoint(x: Float, y: Float) {
         points.add(x to y)
+        SettingsStore.savePoints()
     }
 
     fun removeLastPoint() {
-        if (points.size > 1) points.removeAt(points.lastIndex)
+        if (points.size > 1) {
+            points.removeAt(points.lastIndex)
+            SettingsStore.savePoints()
+        }
     }
 
     fun clearPoints() {
         points.clear()
         points.add(540f to 960f)
+        SettingsStore.savePoints()
     }
 
     fun duplicateLastPoint() {
-        points.lastOrNull()?.let { points.add(it) }
+        points.lastOrNull()?.let {
+            points.add(it)
+            SettingsStore.savePoints()
+        }
     }
 
     fun nudgeLastPoint(dx: Float, dy: Float) {
         if (points.isEmpty()) return
         val last = points.last()
         points[points.lastIndex] = (last.first + dx) to (last.second + dy)
+        SettingsStore.savePoints()
+    }
+
+    fun updatePoint(index: Int, x: Float, y: Float) {
+        if (index !in points.indices) return
+        points[index] = x to y
+        SettingsStore.savePoints()
     }
 
     fun saveFavorite() {
-        points.lastOrNull()?.let { favoritePoints.add(it) }
+        points.lastOrNull()?.let {
+            favoritePoints.add(it)
+            SettingsStore.saveFavorites()
+        }
     }
 
     fun loadFavorite(index: Int) {
         favoritePoints.getOrNull(index)?.let {
             if (points.isEmpty()) points.add(it) else points[points.lastIndex] = it
+            SettingsStore.savePoints()
         }
     }
 
     fun clearFavorites() {
         favoritePoints.clear()
+        SettingsStore.saveFavorites()
     }
 
     fun resetDefaults() {
@@ -164,6 +184,7 @@ object ClickController {
         antiDetect = false
         startDelayMs = 0
         clearPoints()
+        SettingsStore.save()
     }
 
     private fun addLog(msg: String) {

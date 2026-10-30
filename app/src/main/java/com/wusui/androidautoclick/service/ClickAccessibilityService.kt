@@ -43,12 +43,19 @@ class ClickAccessibilityService : AccessibilityService() {
         if (event == null || !SequenceRecorder.isRecording) return
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             val node = event.source ?: return
-            val rect = android.graphics.Rect()
-            node.getBoundsInScreen(rect)
-            val x = rect.centerX().toFloat()
-            val y = rect.centerY().toFloat()
-            SequenceRecorder.addClick(x, y, com.wusui.androidautoclick.ClickController.intervalMs)
-            node.recycle()
+            try {
+                val rect = android.graphics.Rect()
+                node.getBoundsInScreen(rect)
+                val x = rect.centerX().toFloat()
+                val y = rect.centerY().toFloat()
+                // delayMs=null → SequenceRecorder 用真實時間戳當步間間隔
+                SequenceRecorder.addClick(x, y, delayMs = null)
+            } finally {
+                try {
+                    node.recycle()
+                } catch (_: Exception) {
+                }
+            }
         }
     }
 
