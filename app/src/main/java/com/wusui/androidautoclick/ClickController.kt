@@ -198,7 +198,7 @@ object ClickController {
                 if (!ok && stopOnError) { lastError = "手勢失敗"; addLog("手勢失敗，停止"); stop(); return }
                 totalClicks++
                 if (burstCount > 1) {
-                    repeat(burstCount - 1) { service.performClick(x, y, dur); totalClicks++ }
+                    repeat(burstCount - 1) { service.performClick(x, y, dur.coerceAtLeast(10)); totalClicks++ }
                     if (burstPause > 0 && isRunning) { handler.postDelayed(this, burstPause); return }
                 }
                 if (soundOnClick) {
