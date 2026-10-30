@@ -173,7 +173,10 @@ fun AppShell() {
                         ClickController.randomInterval = v
                     },
                     antiDetect = antiDetect,
-                    onAntiDetect = { antiDetect = it },
+                    onAntiDetect = { v ->
+                        antiDetect = v
+                        ClickController.antiDetect = v
+                    },
                     floatButton = floatButton,
                     onFloatButton = { enabled ->
                         floatButton = enabled
@@ -245,7 +248,10 @@ fun AppShell() {
                             randomInterval = randomInterval,
                             onRandomInterval = { randomInterval = it },
                             antiDetect = antiDetect,
-                            onAntiDetect = { antiDetect = it },
+                            onAntiDetect = { v ->
+                        antiDetect = v
+                        ClickController.antiDetect = v
+                    },
                             floatButton = floatButton,
                             onFloatButton = { enabled ->
                         floatButton = enabled
@@ -601,7 +607,7 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.2.0") {}
+        SettingsStatusRow("版本", "0.3.0") {}
         SettingsStatusRow("授權", "MIT") {}
     }
 

@@ -10,8 +10,7 @@ import android.os.Looper
  */
 object ClickController {
 
-    var randomOffset: Boolean = false
-    var randomInterval: Boolean = false
+    var antiDetect: Boolean = false
     var durationMs: Long = 50
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
@@ -75,7 +74,8 @@ object ClickController {
                 updateRemaining()
 
                 if (isRunning) {
-                    val delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
+                    var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
+                    if (antiDetect) delay += kotlin.random.Random.nextLong(0, 80)
                     handler.postDelayed(this, delay.coerceAtLeast(20))
                 }
             }
