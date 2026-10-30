@@ -14,6 +14,14 @@ object ClickController {
     var appContext: Context? = null
     var lastError: String = ""
         private set
+    var isRunning: Boolean = false
+        private set
+    var startTimeMs: Long = 0
+        private set
+    var totalClicks: Int = 0
+        private set
+    var isPaused: Boolean = false
+        private set
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -62,6 +70,8 @@ object ClickController {
     fun clearFavorites() {
         favoritePoints.clear()
     }
+
+    fun resetDefaults() {
         intervalMs = 200
         durationMs = 50
         count = -1
