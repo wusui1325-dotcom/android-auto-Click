@@ -527,8 +527,18 @@ fun ClickDetail(
         SettingsStatusRow("新增點", "") {
             ClickController.addPoint(540f, 960f)
         }
+        SettingsStatusRow("儲存為常用", "") {
+            ClickController.saveFavorite()
+        }
         SettingsStatusRow("複製最後點", "") {
             ClickController.duplicateLastPoint()
+        }
+        if (ClickController.favoritePoints.isNotEmpty()) {
+            ClickController.favoritePoints.forEachIndexed { i, p ->
+                SettingsStatusRow("常用 ${i + 1}", "${p.first.toInt()},${p.second.toInt()}") {
+                    ClickController.loadFavorite(i)
+                }
+            }
         }
         SettingsStatusRow("微調 +10", "") {
             ClickController.nudgeLastPoint(10f, 0f)

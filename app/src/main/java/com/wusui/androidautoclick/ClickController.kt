@@ -44,8 +44,16 @@ object ClickController {
         appContext = context.applicationContext
     }
 
-    fun resetTotal() {
-        totalClicks = 0
+    val favoritePoints = mutableListOf<Pair<Float, Float>>()
+
+    fun saveFavorite() {
+        points.lastOrNull()?.let { favoritePoints.add(it) }
+    }
+
+    fun loadFavorite(index: Int) {
+        favoritePoints.getOrNull(index)?.let {
+            if (points.isEmpty()) points.add(it) else points[points.lastIndex] = it
+        }
     }
         intervalMs = 200
         durationMs = 50
