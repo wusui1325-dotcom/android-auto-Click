@@ -128,6 +128,11 @@ fun AppShell() {
                 arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100
             )
         }
+        (context as? android.app.Activity)?.let { act ->
+            val color = if (SettingsColors.isDark) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#F2F2F7")
+            act.window.statusBarColor = color
+            act.window.navigationBarColor = color
+        }
         ClickController.intervalMs = interval.toLong()
         ClickController.durationMs = duration.toLong()
         ClickController.count = if (count == "無限") -1 else count.toIntOrNull() ?: -1
