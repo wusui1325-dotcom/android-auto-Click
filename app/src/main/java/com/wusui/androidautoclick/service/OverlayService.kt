@@ -734,6 +734,8 @@ class OverlayService : Service() {
             })
             val (r1, etInterval) = fieldRow(intervalLabel, live.intervalToNextMs.toString())
             addView(r1)
+            val (rTap, etTap) = fieldRow("點擊時長(ms,≥1)", live.tapDurationMs.toString())
+            if (live.kind == NodeKind.CLICK) addView(rTap)
             val (r2, etClicks) = fieldRow("單次點擊次數", live.clickCount.toString())
             if (live.kind == NodeKind.CLICK) addView(r2)
             addView(TextView(this@OverlayService).apply {
@@ -746,10 +748,16 @@ class OverlayService : Service() {
                 setOnClickListener {
                     val interval = etInterval.text.toString().toLongOrNull()?.coerceAtLeast(0)
                         ?: live.intervalToNextMs
+                    val taps = etTap.text.toString().toLongOrNull()?.coerceAtLeast(1)
+                        ?: live.tapDurationMs
                     val clicks = etClicks.text.toString().toIntOrNull()?.coerceAtLeast(1)
                         ?: live.clickCount
                     AppStore.updateNode(live.id) {
-                        it.copy(intervalToNextMs = interval, clickCount = clicks)
+                        it.copy(
+                            intervalToNextMs = interval,
+                            tapDurationMs = taps,
+                            clickCount = clicks
+                        )
                     }
                     dismissPopup()
                     toast("已更新點 ${live.order}")
@@ -768,7 +776,7 @@ class OverlayService : Service() {
             addView(r1)
             val (r2, etStop) = fieldRow("多久後停止(ms,0=無)", p.stopAfterMs.toString())
             addView(r2)
-            val (r3, etTap) = fieldRow("單下按下時長(ms,≥1)", p.tapDurationMs.toString())
+            val (r3, etTap) = fieldRow("全域預設點擊時長(ms)", p.tapDurationMs.toString())
             addView(r3)
             addView(TextView(this@OverlayService).apply {
                 text = "速度說明：系統 dispatchGesture 必須串行等 onCompleted，無法並行。節奏≈按下時長+「手勢完成後再等」。舊版曾誤用 TapTimeout≈100ms 當按下下限並多加 40ms，已去掉。"

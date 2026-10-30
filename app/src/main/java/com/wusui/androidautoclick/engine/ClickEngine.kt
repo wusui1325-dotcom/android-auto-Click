@@ -216,7 +216,7 @@ object ClickEngine {
             return
         }
         val (x, y) = jitter(node.x, node.y, params)
-        dispatcher.click(service, x, y, params.tapDurationMs) { ok ->
+        dispatcher.click(service, x, y, node.tapDurationMs.coerceAtLeast(1L)) { ok ->
             if (gen != generation) return@click
             if (!okResult(ok)) return@click
             bumpAction()

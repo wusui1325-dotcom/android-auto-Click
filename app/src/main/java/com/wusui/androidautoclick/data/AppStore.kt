@@ -78,14 +78,16 @@ object AppStore {
         when (type) {
             SessionType.SINGLE -> {
                 val (cx, cy) = defaultCenter()
+                val tap = _params.value.tapDurationMs.coerceAtLeast(1)
                 _nodes.value = listOf(
-                    TouchNode(order = 1, x = cx, y = cy, intervalToNextMs = 200, clickCount = 1)
+                    TouchNode(order = 1, x = cx, y = cy, intervalToNextMs = 200, clickCount = 1, tapDurationMs = tap)
                 )
             }
             SessionType.MULTI -> {
                 val (cx, cy) = defaultCenter()
+                val tap = _params.value.tapDurationMs.coerceAtLeast(1)
                 _nodes.value = listOf(
-                    TouchNode(order = 1, x = cx, y = cy, intervalToNextMs = 200, clickCount = 1)
+                    TouchNode(order = 1, x = cx, y = cy, intervalToNextMs = 200, clickCount = 1, tapDurationMs = tap)
                 )
             }
             SessionType.RECORD -> {
@@ -115,7 +117,10 @@ object AppStore {
 
     fun addClickPoint(x: Float, y: Float): TouchNode {
         val next = (_nodes.value.maxOfOrNull { it.order } ?: 0) + 1
-        val node = TouchNode(order = next, x = x, y = y)
+        val node = TouchNode(
+            order = next, x = x, y = y,
+            tapDurationMs = _params.value.tapDurationMs.coerceAtLeast(1)
+        )
         _nodes.update { it + node }
         renumber()
         return node
@@ -164,11 +169,13 @@ object AppStore {
         if (_nodes.value.isNotEmpty()) {
             val last = _nodes.value.last()
             _nodes.update { list ->
+                val tap = _params.value.tapDurationMs.coerceAtLeast(1)
                 list.dropLast(1) + last.copy(intervalToNextMs = gapMs.coerceAtLeast(0)) +
-                    TouchNode(order = next, x = x, y = y)
+                    TouchNode(order = next, x = x, y = y, tapDurationMs = tap)
             }
         } else {
-            _nodes.update { it + TouchNode(order = next, x = x, y = y) }
+            val tap = _params.value.tapDurationMs.coerceAtLeast(1)
+            _nodes.update { it + TouchNode(order = next, x = x, y = y, tapDurationMs = tap) }
         }
         renumber()
     }
@@ -229,7 +236,7 @@ object AppStore {
             cycleCount = p.getInt("cycleCount", -1),
             stopAfterMs = p.getLong("stopAfter", 0),
             jitter = p.getBoolean("jitter", false),
-            tapDurationMs = p.getLong("tapDur", 50),
+            tapDurationMs = p.getLong("tapDur", 16),
             swipeDurationMs = p.getLong("swipeDur", 280)
         )
     }
@@ -280,6 +287,7 @@ object AppStore {
                 put("y", n.y.toDouble())
                 put("interval", n.intervalToNextMs)
                 put("clicks", n.clickCount)
+                put("tapDur", n.tapDurationMs)
                 put("kind", n.kind.name)
                 put("groupId", n.groupId ?: JSONObject.NULL)
             })
@@ -298,7 +306,7 @@ object AppStore {
             cycleCount = o.optInt("cycleCount", -1),
             stopAfterMs = o.optLong("stopAfter", 0),
             jitter = o.optBoolean("jitter", false),
-            tapDurationMs = o.optLong("tapDur", 50),
+            tapDurationMs = o.optLong("tapDur", 16),
             swipeDurationMs = o.optLong("swipeDur", 280)
         )
         val arr = o.optJSONArray("nodes") ?: JSONArray()
@@ -317,6 +325,7 @@ object AppStore {
                 y = n.optDouble("y", 0.0).toFloat(),
                 intervalToNextMs = n.optLong("interval", 200),
                 clickCount = n.optInt("clicks", 1).coerceAtLeast(1),
+                tapDurationMs = n.optLong("tapDur", 16).coerceAtLeast(1),
                 kind = kind,
                 groupId = gid
             )

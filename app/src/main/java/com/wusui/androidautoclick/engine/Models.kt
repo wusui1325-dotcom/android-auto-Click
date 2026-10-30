@@ -27,6 +27,8 @@ data class TouchNode(
     val intervalToNextMs: Long = 200L,
     /** How many taps at this point each cycle (CLICK only). */
     val clickCount: Int = 1,
+    /** Press duration per tap at this point (ms, ≥1). */
+    val tapDurationMs: Long = 16L,
     val kind: NodeKind = NodeKind.CLICK,
     val groupId: String? = null
 )
