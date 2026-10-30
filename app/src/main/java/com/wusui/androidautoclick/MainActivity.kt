@@ -804,7 +804,7 @@ fun SequenceDetail() {
 
     SettingsSection(label = "目前步驟") {
         if (SequenceRecorder.steps.isEmpty()) {
-            SettingsStatusRow("尚無步驟", "") {}
+            SettingsStatusRow("尚無步驟", "點開始錄製") {}
         } else {
             SequenceRecorder.steps.forEachIndexed { i, step ->
                 val label = when (step.type) {
