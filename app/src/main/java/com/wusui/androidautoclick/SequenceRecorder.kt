@@ -22,6 +22,8 @@ object SequenceRecorder {
     val saved = mutableMapOf<String, List<Step>>()
     var isRecording = false
         private set
+    var isReplaying = false
+        private set
     var replayLoops: Int = 1 // 0 = 無限
 
     private val handler = Handler(Looper.getMainLooper())
@@ -41,6 +43,40 @@ object SequenceRecorder {
         steps.add(Step("click", x, y, delayMs))
     }
 
+    fun addWait(ms: Long) {
+        if (!isRecording) return
+        steps.add(Step("wait", delayMs = ms))
+    }
+
+    fun clear() {
+        steps.clear()
+        isRecording = false
+        stopReplay()
+    }
+
+    fun clearSaved() { saved.clear() }
+
+    fun reverse() { steps.reverse() }
+    fun shuffle() { steps.shuffle() }
+
+    fun save(name: String) {
+        if (steps.isEmpty()) return
+        saved[name] = steps.toList()
+    }
+
+    fun load(name: String) {
+        saved[name]?.let { steps.clear(); steps.addAll(it) }
+    }
+
+    fun exportText(): String = steps.joinToString("\n") { s ->
+        when (s.type) {
+            "click" -> "click ${s.x.toInt()} ${s.y.toInt()} ${s.delayMs}"
+            "wait" -> "wait ${s.delayMs}"
+            "swipe" -> "swipe ${s.x.toInt()} ${s.y.toInt()} ${s.x2.toInt()} ${s.y2.toInt()} ${s.delayMs}"
+            else -> s.type
+        }
+    }
+
     fun addSwipe(x1: Float, y1: Float, x2: Float, y2: Float, delayMs: Long = 300) {
         if (!isRecording) return
         steps.add(Step("swipe", x1, y1, x2, y2, delayMs))
@@ -56,6 +92,10 @@ object SequenceRecorder {
             steps[index] = steps[index - 1]
             steps[index - 1] = tmp
         }
+    }
+
+    fun duplicateStep(index: Int) {
+        if (index in steps.indices) steps.add(index + 1, steps[index])
     }
 
     fun trimTo(max: Int) {

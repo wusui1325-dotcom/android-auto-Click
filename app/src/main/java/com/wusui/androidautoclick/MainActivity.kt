@@ -977,6 +977,18 @@ private fun pointsText(index: Int): String {
 }
 
 @Composable
+fun DetailTitle(text: String) {
+    Text(
+        text,
+        style = TextStyle(
+            fontSize = 17.sp,
+            fontWeight = FontWeight(650),
+            color = SettingsColors.text
+        )
+    )
+}
+
+@Composable
 fun Caption(text: String) {
     Text(
         text,
