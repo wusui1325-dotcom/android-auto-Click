@@ -1014,6 +1014,7 @@ fun SettingsSection(label: String, content: @Composable ColumnScope.() -> Unit) 
         ) {
             content()
         }
+        Spacer(Modifier.height(4.dp))
     }
 }
 
