@@ -22,8 +22,7 @@ object SequenceRecorder {
     val saved = mutableMapOf<String, List<Step>>()
     var isRecording = false
         private set
-    var isReplaying = false
-        private set
+    var replayLoops: Int = 1 // 0 = 無限
 
     private val handler = Handler(Looper.getMainLooper())
     private var replayIndex = 0
@@ -74,18 +73,26 @@ object SequenceRecorder {
         }
     }
 
+    private var currentLoop = 0
+
     fun replay() {
         if (isReplaying || steps.isEmpty()) return
         val service = ClickAccessibilityService.instance ?: return
         isReplaying = true
         replayIndex = 0
+        currentLoop = 0
         playNext(service)
     }
 
     private fun playNext(service: ClickAccessibilityService) {
-        if (!isReplaying || replayIndex >= steps.size) {
-            isReplaying = false
-            return
+        if (!isReplaying) return
+        if (replayIndex >= steps.size) {
+            currentLoop++
+            if (replayLoops > 0 && currentLoop >= replayLoops) {
+                isReplaying = false
+                return
+            }
+            replayIndex = 0
         }
         val step = steps[replayIndex++]
         when (step.type) {

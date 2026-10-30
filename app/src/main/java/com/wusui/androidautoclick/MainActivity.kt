@@ -523,6 +523,10 @@ fun SequenceDetail() {
         SettingsStatusRow("回放目前", if (SequenceRecorder.isReplaying) "回放中" else "") {
             if (SequenceRecorder.isReplaying) SequenceRecorder.stopReplay() else SequenceRecorder.replay()
         }
+        CycleRow("回放次數", if (SequenceRecorder.replayLoops == 0) "無限" else SequenceRecorder.replayLoops.toString(),
+            listOf("1", "3", "5", "無限")) { v ->
+            SequenceRecorder.replayLoops = if (v == "無限") 0 else v.toInt()
+        }
         SettingsStatusRow("匯出文字", "") {
             val text = SequenceRecorder.exportText()
             android.util.Log.d("AutoClick", text.ifEmpty { "(empty)" })
