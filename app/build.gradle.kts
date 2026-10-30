@@ -4,6 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+import java.util.Properties
+
 android {
     namespace = "com.wusui.androidautoclick"
     compileSdk = 35
@@ -16,9 +18,24 @@ android {
         versionName = "1.4.0"
     }
 
+    signingConfigs {
+        create("release") {
+            val props = Properties()
+            val local = rootProject.file("local.properties")
+            if (local.exists()) {
+                local.inputStream().use { props.load(it) }
+            }
+            storeFile = file(props.getProperty("storeFile") ?: "release.keystore")
+            storePassword = props.getProperty("storePassword") ?: "android"
+            keyAlias = props.getProperty("keyAlias") ?: "release"
+            keyPassword = props.getProperty("keyPassword") ?: "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
