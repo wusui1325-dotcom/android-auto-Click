@@ -574,6 +574,9 @@ fun ClickDetail(
         CycleRow("CPS 上限", ClickController.maxCps.toString(), listOf(5, 10, 20, 30, 50).map { it.toString() }) { v ->
             ClickController.maxCps = v.toInt()
         }
+        ToggleRow("按下即點", ClickController.clickOnDown) {
+            ClickController.clickOnDown = it
+        }
         ToggleRow("開始清空記錄", ClickController.clearLogOnStart) {
             ClickController.clearLogOnStart = it
         }

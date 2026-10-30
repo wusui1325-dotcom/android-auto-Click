@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var maxMinutes: Int = 0 // 0 = 無限制
+    var clickOnDown: Boolean = false // 按下即點（佔位）
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
