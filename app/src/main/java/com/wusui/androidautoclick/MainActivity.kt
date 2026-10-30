@@ -907,6 +907,7 @@ fun AboutDetail() {
 
     SettingsSection(label = "應用") {
         SettingsStatusRow("版本", "1.4.0") {}
+        SettingsStatusRow("建置", "優化版") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
             SequenceRecorder.stopReplay()
