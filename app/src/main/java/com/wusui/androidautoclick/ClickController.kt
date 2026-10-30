@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var stopOnError: Boolean = true
+    var logClicks: Boolean = true
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -145,7 +145,7 @@ object ClickController {
                     android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 40)
                         .startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 30)
                 }
-                addLog("點擊 ${x.toInt()},${y.toInt()}")
+                if (logClicks) addLog("點擊 ${x.toInt()},${y.toInt()}")
 
                 if (usePoints.size > 1) {
                     pointIndex = (pointIndex + 1) % usePoints.size

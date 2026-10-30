@@ -560,6 +560,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("記錄點擊", ClickController.logClicks) {
+            ClickController.logClicks = it
+        }
         ToggleRow("失敗即停", ClickController.stopOnError) {
             ClickController.stopOnError = it
         }
