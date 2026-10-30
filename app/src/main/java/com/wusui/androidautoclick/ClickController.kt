@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var showCoordsOnOverlay: Boolean = false
+    var clearLogOnStart: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -89,6 +89,7 @@ object ClickController {
         pointIndex = 0
         startTimeMs = System.currentTimeMillis()
         updateRemaining()
+        if (clearLogOnStart) log.clear()
         addLog("開始")
         appContext?.let { ctx ->
             ClickNotification.showRunning(ctx, "執行中")
