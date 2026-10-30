@@ -131,6 +131,7 @@ object ClickController {
                 }
                 if (count >= 0) remaining--
                 updateRemaining()
+                appContext?.let { ClickNotification.showRunning(it, "剩餘 ${remainingDisplay}") }
 
                 if (isRunning) {
                     var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
