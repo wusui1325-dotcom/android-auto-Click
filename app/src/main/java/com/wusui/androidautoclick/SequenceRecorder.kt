@@ -159,7 +159,7 @@ object SequenceRecorder {
         replayIndex++
         when (step.type) {
             "click" -> service.performClick(step.x, step.y, ClickController.durationMs)
-            "swipe" -> service.performSwipe(step.x, step.y, step.x2, step.y2, step.delayMs)
+            "swipe" -> service.performSwipe(step.x, step.y, step.x2, step.y2, step.delayMs.coerceAtLeast(50))
             "wait" -> {}
         }
         handler.postDelayed({ playNext(service) }, step.delayMs.coerceAtLeast(50))

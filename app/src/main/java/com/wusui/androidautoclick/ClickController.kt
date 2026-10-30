@@ -175,7 +175,7 @@ object ClickController {
                 val usePoints = if (reversePoints) base.reversed() else base
                 if (usePoints.isEmpty()) { stop(); return }
                 val idx = (if (randomPoint && usePoints.size > 1) kotlin.random.Random.nextInt(usePoints.size) else pointIndex % usePoints.size.coerceAtLeast(1)).coerceIn(0, usePoints.lastIndex)
-                var (x, y) = usePoints[idx]
+                var (x, y) = usePoints.getOrElse(idx) { usePoints.first() }
                 x = x * scale + offsetX
                 y = y * scale + offsetY
                 if (mirrorX) appContext?.resources?.displayMetrics?.let { x = it.widthPixels - x }
