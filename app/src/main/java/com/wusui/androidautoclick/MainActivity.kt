@@ -463,6 +463,9 @@ fun ClickDetail(
         SettingsStatusRow("新增點", "") {
             ClickController.addPoint(540f, 960f)
         }
+        SettingsStatusRow("複製最後點", "") {
+            ClickController.duplicateLastPoint()
+        }
         SettingsStatusRow("微調 +10", "") {
             ClickController.nudgeLastPoint(10f, 0f)
         }
@@ -627,7 +630,7 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.3.0") {}
+        SettingsStatusRow("版本", "0.4.0") {}
         SettingsStatusRow("授權", "MIT") {}
     }
 
