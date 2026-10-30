@@ -443,6 +443,21 @@ fun ClickDetail(
     DetailTitle("點擊")
     Spacer(Modifier.height(16.dp))
 
+    SettingsSection(label = "快速") {
+        SettingsStatusRow(
+            if (ClickController.isRunning) "停止" else "開始",
+            if (ClickController.isRunning) "${ClickController.elapsedSec()}s" else ""
+        ) {
+            ClickController.toggle()
+        }
+        SettingsStatusRow("單次測試", "") {
+            val p = ClickController.points.firstOrNull() ?: return@SettingsStatusRow
+            ClickAccessibilityService.instance?.performClick(p.first, p.second, ClickController.durationMs)
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
     SettingsSection(label = "基本") {
         CycleRow("模式", clickMode, listOf("單點", "多點", "滑動")) { onClickMode(it) }
         CycleRow("間隔", "$interval ms", listOf(50, 100, 200, 300, 500, 1000).map { "$it ms" }) { v ->
