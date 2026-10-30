@@ -29,8 +29,14 @@ object ClickController {
     var durationMs: Long = 50
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
-
-    var isPaused: Boolean = false
+    var intervalMs: Long = 200
+    var startDelayMs: Long = 0
+    var maxCps: Int = 20
+    var maxMinutes: Int = 0
+    var clearLogOnStart: Boolean = false
+    var remainingDisplay: String = ""
+        private set
+    var currentPointIndex: Int = 0
         private set
 
     fun pause() {
@@ -44,10 +50,6 @@ object ClickController {
     }
 
     fun elapsedSec(): Long = if (isRunning) (System.currentTimeMillis() - startTimeMs) / 1000 else 0
-    var remainingDisplay: String = ""
-        private set
-    var currentPointIndex: Int = 0
-        private set
 
     fun attach(context: Context) {
         appContext = context.applicationContext
