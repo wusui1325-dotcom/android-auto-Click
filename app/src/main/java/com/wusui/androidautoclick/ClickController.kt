@@ -201,7 +201,7 @@ object ClickController {
                     android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 40)
                         .startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 30)
                 }
-                if (debugLog) addLog("idx=$pointIndex x=${x.toInt()} y=${y.toInt()} rem=$remaining")
+                if (debugLog && totalClicks % 10 == 0) addLog("idx=$pointIndex x=${x.toInt()} y=${y.toInt()} rem=$remaining")
                 if (logClicks && (logEvery <= 1 || totalClicks % logEvery == 0)) addLog("點擊 ${x.toInt()},${y.toInt()}")
 
                 if (usePoints.size > 1) {

@@ -67,7 +67,7 @@ class FloatingOverlayService : Service() {
     private fun showOverlay() {
         if (overlayView != null) return
 
-        val size = dp(64)
+        val size = if (ClickController.showCoordsOnOverlay) dp(80) else dp(64)
         val view = FrameLayout(this).apply {
             layoutParams = ViewGroup.LayoutParams(size, size)
         }

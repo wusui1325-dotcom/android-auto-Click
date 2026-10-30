@@ -38,7 +38,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SettingsTheme {
-                AppShell()
+                key(SettingsColors.isDark) {
+                    AppShell()
+                }
             }
         }
     }
@@ -1050,9 +1052,10 @@ fun SettingsStatusRow(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (pressed) SettingsColors.rowActive else Color.Transparent)
-            .clickable {
-                onClick()
-            }
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { onClick() }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
