@@ -14,8 +14,8 @@ android {
         applicationId = "com.wusui.androidautoclick"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.4.3"
+        versionCode = 4
+        versionName = "1.5.0"
     }
 
     signingConfigs {

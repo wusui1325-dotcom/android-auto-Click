@@ -96,7 +96,10 @@ object ClickController {
     fun clearError() { lastError = "" }
     fun resetTotal() { totalClicks = 0 }
 
+    var showMarkers: Boolean = true
+
     fun addPoint(x: Float, y: Float) { points.add(x to y) }
+    fun removeLastPoint() { if (points.isNotEmpty()) points.removeAt(points.lastIndex) }
     fun clearPoints() { points.clear(); points.add(540f to 960f) }
     fun duplicateLastPoint() { points.lastOrNull()?.let { points.add(it) } }
     fun nudgeLastPoint(dx: Float, dy: Float) {
