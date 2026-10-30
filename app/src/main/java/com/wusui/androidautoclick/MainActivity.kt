@@ -924,6 +924,7 @@ fun AboutDetail() {
         }
         SettingsStatusRow("高對比", if (SettingsColors.isDark) "開" else "關") {
             SettingsColors.isDark = true
+            SettingsStore.save()
         }
         SettingsStatusRow("切換主題", if (SettingsColors.isDark) "深色" else "淺色") {
             SettingsColors.isDark = !SettingsColors.isDark
