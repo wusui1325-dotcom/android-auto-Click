@@ -136,6 +136,7 @@ class FloatingOverlayService : Service() {
             ClickController.isRunning -> ClickController.remainingDisplay.ifEmpty { "■" }
             else -> "▶"
         }
+        button.setTextColor(android.graphics.Color.WHITE)
     }
 
     private var longPressHandler = Handler(Looper.getMainLooper())
