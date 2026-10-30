@@ -21,8 +21,10 @@ object ClickController {
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
 
-    var isRunning: Boolean = false
+    var startTimeMs: Long = 0
         private set
+
+    fun elapsedSec(): Long = if (isRunning) (System.currentTimeMillis() - startTimeMs) / 1000 else 0
     var remainingDisplay: String = ""
         private set
     var currentPointIndex: Int = 0
@@ -73,6 +75,7 @@ object ClickController {
         isRunning = true
         remaining = count
         pointIndex = 0
+        startTimeMs = System.currentTimeMillis()
         updateRemaining()
         addLog("開始")
         appContext?.let { ClickNotification.showRunning(it, "執行中") }
