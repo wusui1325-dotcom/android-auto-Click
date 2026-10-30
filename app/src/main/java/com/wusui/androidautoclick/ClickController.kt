@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var keepScreenOn: Boolean = false
+    var soundOnClick: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -118,6 +118,10 @@ object ClickController {
                 }
                 service.performClick(x, y, durationMs)
                 totalClicks++
+                if (soundOnClick) {
+                    android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 40)
+                        .startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 30)
+                }
                 addLog("點擊 ${x.toInt()},${y.toInt()}")
 
                 if (usePoints.size > 1) {

@@ -550,6 +550,9 @@ fun ClickDetail(
                 (context as? android.app.Activity)?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
+        ToggleRow("點擊音效", ClickController.soundOnClick) {
+            ClickController.soundOnClick = it
+        }
     }
 
     Spacer(Modifier.height(8.dp))
