@@ -541,6 +541,14 @@ fun ClickDetail(
         ToggleRow("開始震動", ClickController.vibrateOnStart) {
             ClickController.vibrateOnStart = it
         }
+        ToggleRow("保持螢幕", ClickController.keepScreenOn) {
+            ClickController.keepScreenOn = it
+            if (it) {
+                (context as? android.app.Activity)?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                (context as? android.app.Activity)?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
     }
 
     Spacer(Modifier.height(8.dp))
@@ -695,7 +703,7 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.6.0") {}
+        SettingsStatusRow("版本", "0.7.0") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
             SequenceRecorder.stopReplay()
