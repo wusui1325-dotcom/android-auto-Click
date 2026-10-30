@@ -10,7 +10,7 @@ import android.os.Looper
  */
 object ClickController {
 
-    var intervalMs: Long = 200
+    var mode: String = "單點" // 單點 | 多點
     var durationMs: Long = 50
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
@@ -58,12 +58,13 @@ object ClickController {
                     return
                 }
 
-                val (x, y) = points.getOrElse(pointIndex) { points.first() }
+                val usePoints = if (mode == "多點" && points.size > 1) points else listOf(points.first())
+                val (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
                 service.performClick(x, y, durationMs)
                 addLog("點擊 ${x.toInt()},${y.toInt()}")
 
-                if (points.size > 1) {
-                    pointIndex = (pointIndex + 1) % points.size
+                if (usePoints.size > 1) {
+                    pointIndex = (pointIndex + 1) % usePoints.size
                     currentPointIndex = pointIndex
                 }
                 if (count >= 0) remaining--

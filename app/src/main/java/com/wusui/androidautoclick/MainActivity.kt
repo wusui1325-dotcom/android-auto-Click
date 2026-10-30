@@ -143,7 +143,10 @@ fun AppShell() {
                     accessibilityOn = accessibilityOn,
                     overlayOn = overlayOn,
                     clickMode = clickMode,
-                    onClickMode = { clickMode = it },
+                    onClickMode = { v ->
+                        clickMode = v
+                        ClickController.mode = v
+                    },
                     interval = interval,
                     onInterval = { v ->
                         interval = v
@@ -221,7 +224,10 @@ fun AppShell() {
                             accessibilityOn = accessibilityOn,
                             overlayOn = overlayOn,
                             clickMode = clickMode,
-                            onClickMode = { clickMode = it },
+                            onClickMode = { v ->
+                        clickMode = v
+                        ClickController.mode = v
+                    },
                             interval = interval,
                             onInterval = { interval = it },
                             count = count,
