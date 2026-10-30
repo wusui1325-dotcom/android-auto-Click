@@ -57,29 +57,12 @@ class ClickAccessibilityService : AccessibilityService() {
         return dispatchGesture(gesture, null, null)
     }
 
-    /**
-     * 連續點擊（簡易版，後續可改為可取消的協程）。
-     */
-    fun performContinuousClick(
-        x: Float,
-        y: Float,
-        intervalMs: Long,
-        count: Int,
-        onComplete: (() -> Unit)? = null
-    ) {
-        val handler = Handler(Looper.getMainLooper())
-        var remaining = count
-        val runnable = object : Runnable {
-            override fun run() {
-                if (remaining <= 0) {
-                    onComplete?.invoke()
-                    return
-                }
-                performClick(x, y)
-                remaining--
-                handler.postDelayed(this, intervalMs)
-            }
+    fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 300): Boolean {
+        val path = Path().apply {
+            moveTo(x1, y1)
+            lineTo(x2, y2)
         }
-        handler.post(runnable)
+        val stroke = GestureDescription.StrokeDescription(path, 0, durationMs)
+        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        return dispatchGesture(gesture, null, null)
     }
-}
