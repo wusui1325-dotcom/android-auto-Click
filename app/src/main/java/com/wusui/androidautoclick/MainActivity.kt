@@ -560,6 +560,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("失敗即停", ClickController.stopOnError) {
+            ClickController.stopOnError = it
+        }
         ToggleRow("擬人化", ClickController.humanize) {
             ClickController.humanize = it
         }

@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var humanize: Boolean = false // 擬人化微抖動
+    var stopOnError: Boolean = true
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -128,7 +128,12 @@ object ClickController {
                     x += (kotlin.random.Random.nextInt(-range, range + 1)).toFloat()
                     y += (kotlin.random.Random.nextInt(-range, range + 1)).toFloat()
                 }
-                service.performClick(x, y, durationMs)
+                val ok = service.performClick(x, y, durationMs)
+                if (!ok && stopOnError) {
+                    addLog("手勢失敗，停止")
+                    stop()
+                    return
+                }
                 totalClicks++
                 if (burstCount > 1) {
                     repeat(burstCount - 1) {
