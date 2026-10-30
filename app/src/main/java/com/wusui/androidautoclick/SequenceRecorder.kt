@@ -40,7 +40,7 @@ object SequenceRecorder {
 
     fun addClick(x: Float, y: Float, delayMs: Long = 200) {
         if (!isRecording) return
-        steps.add(Step("click", x, y, delayMs))
+        steps.add(Step("click", x = x, y = y, delayMs = delayMs))
     }
 
     fun addWait(ms: Long) {
