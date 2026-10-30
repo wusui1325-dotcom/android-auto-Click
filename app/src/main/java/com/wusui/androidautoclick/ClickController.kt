@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var pauseEvery: Int = 0 // 每 N 次暫停一下
+    var burstPause: Long = 0 // 爆發後額外等待
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -191,6 +191,10 @@ object ClickController {
                     repeat(burstCount - 1) {
                         service.performClick(x, y, durationMs)
                         totalClicks++
+                    }
+                    if (burstPause > 0 && isRunning) {
+                        handler.postDelayed(this, burstPause)
+                        return
                     }
                 }
                 if (soundOnClick) {

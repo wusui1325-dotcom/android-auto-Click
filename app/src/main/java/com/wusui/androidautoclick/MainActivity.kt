@@ -447,6 +447,9 @@ fun ClickDetail(
         CycleRow("暖機次數", ClickController.warmupClicks.toString(), listOf(0, 3, 5, 10).map { it.toString() }) { v ->
             ClickController.warmupClicks = v.toInt()
         }
+        CycleRow("爆發後等待", "${ClickController.burstPause} ms", listOf(0, 100, 300, 500).map { "$it ms" }) { v ->
+            ClickController.burstPause = v.removeSuffix(" ms").toLong()
+        }
         CycleRow("爆發次數", ClickController.burstCount.toString(), listOf(1, 2, 3, 5).map { it.toString() }) { v ->
             ClickController.burstCount = v.toInt()
         }
