@@ -426,6 +426,10 @@ fun ClickDetail(
         ) {
             ClickController.toggle()
         }
+        SettingsStatusRow("單次測試", "") {
+            val p = ClickController.points.firstOrNull() ?: return@SettingsStatusRow
+            ClickAccessibilityService.instance?.performClick(p.first, p.second, ClickController.durationMs)
+        }
     }
 
     Spacer(Modifier.height(8.dp))
