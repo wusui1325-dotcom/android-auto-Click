@@ -662,6 +662,10 @@ fun AboutDetail() {
             ClickController.stop()
             SequenceRecorder.stopReplay()
         }
+        SettingsStatusRow("重設預設", "") {
+            ClickController.resetDefaults()
+            SettingsStore.save()
+        }
         SettingsStatusRow("授權", "MIT") {}
     }
 

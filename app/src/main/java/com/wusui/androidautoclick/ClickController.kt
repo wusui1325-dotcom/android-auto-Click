@@ -32,9 +32,17 @@ object ClickController {
         appContext = context.applicationContext
     }
 
-    fun duplicateLastPoint() {
-        if (points.isEmpty()) return
-        points.add(points.last())
+    fun resetDefaults() {
+        intervalMs = 200
+        durationMs = 50
+        count = -1
+        mode = "單點"
+        randomOffset = false
+        randomInterval = false
+        antiDetect = false
+        startDelayMs = 0
+        points.clear()
+        points.add(540f to 960f)
     }
 
     fun nudgeLastPoint(dx: Float, dy: Float) {
