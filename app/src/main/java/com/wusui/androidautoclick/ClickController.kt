@@ -231,7 +231,7 @@ object ClickController {
                 }
             }
         }
-        val launch = { handler.post(runnable!!) }
+        val launch: () -> Unit = { handler.post(runnable!!) }
         if (startDelayMs > 0) handler.postDelayed(launch, startDelayMs) else launch()
         return true
     }
