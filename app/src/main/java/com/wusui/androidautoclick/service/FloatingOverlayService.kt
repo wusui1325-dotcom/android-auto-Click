@@ -90,6 +90,8 @@ class FloatingOverlayService : Service() {
                 setStroke(dp(1), Color.parseColor("#2C2C2E"))
             }
             setOnClickListener { toggleClicking() }
+            isClickable = true
+            isFocusable = true
         }
 
         view.addView(button)
