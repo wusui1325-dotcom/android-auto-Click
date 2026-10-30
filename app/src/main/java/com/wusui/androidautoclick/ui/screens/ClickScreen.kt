@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.wusui.androidautoclick.data.SettingsRepository
 import com.wusui.androidautoclick.engine.ClickEngine
 import com.wusui.androidautoclick.engine.ClickMode
+import com.wusui.androidautoclick.engine.ClickPresets
 import com.wusui.androidautoclick.ui.AppColors
 import com.wusui.androidautoclick.ui.components.ActionButton
 import com.wusui.androidautoclick.ui.components.NumberField
@@ -55,6 +56,22 @@ fun ClickScreen() {
                     },
                     trailing = if (cfg.mode == mode) "✓" else null,
                     onClick = { SettingsRepository.updateConfig { it.copy(mode = mode) } }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        SectionLabel("連點預設")
+        SettingsCard {
+            ClickPresets.all.forEach { preset ->
+                val selected = cfg.intervalMs == preset.intervalMs &&
+                    cfg.durationMs == preset.durationMs &&
+                    cfg.count == preset.count
+                SettingsRow(
+                    title = preset.label,
+                    subtitle = preset.subtitle,
+                    trailing = if (selected) "✓" else null,
+                    onClick = { SettingsRepository.applyPreset(preset) }
                 )
             }
         }
@@ -102,6 +119,9 @@ fun ClickScreen() {
         Spacer(Modifier.height(12.dp))
         SectionLabel("標記點（${points.size}）— 可編輯座標")
         SettingsCard {
+            if (points.isEmpty()) {
+                SettingsRow("尚無標記", subtitle = "新增或開懸浮窗拖曳")
+            }
             points.forEachIndexed { i, p ->
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                     Text("點 ${i + 1}", color = AppColors.text(), fontSize = 15.sp)

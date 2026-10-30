@@ -72,13 +72,20 @@ object ClickEngine {
         currentLoop = 0
         consecutiveFails = 0
         dispatcher.reset()
+        val msg = when {
+            cfg.mode == ClickMode.SEQUENCE && cfg.activeSequenceName.isNotBlank() ->
+                "序列「${cfg.activeSequenceName}」"
+            else -> ""
+        }
         _status.value = EngineStatus(
             running = cfg.mode != ClickMode.SEQUENCE,
             replaying = cfg.mode == ClickMode.SEQUENCE,
             remaining = remainingLabel(),
-            lastError = ""
+            lastError = "",
+            message = msg
         )
         haptic(true)
+        SettingsRepository.onSessionStart()
         SettingsRepository.appContext?.let {
             ClickNotification.showRunning(it, "執行中")
         }
@@ -106,7 +113,10 @@ object ClickEngine {
                 remaining = remainingLabel()
             )
         }
-        if (wasActive) haptic(false)
+        if (wasActive) {
+            haptic(false)
+            SettingsRepository.onSessionEnd()
+        }
         SettingsRepository.appContext?.let { ClickNotification.cancel(it) }
     }
 
@@ -264,6 +274,7 @@ object ClickEngine {
     private fun onActionDone(gen: Int, cfg: EngineConfig, pointCount: Int) {
         if (gen != generation) return
         if (cfg.count >= 0) remaining = (remaining - 1).coerceAtLeast(0)
+        SettingsRepository.onActionCounted()
         _status.update {
             it.copy(
                 totalActions = it.totalActions + 1,
@@ -310,6 +321,7 @@ object ClickEngine {
                     dispatcher.click(service, step.x, step.y, cfg.durationMs.coerceAtLeast(10)) { ok ->
                         if (gen != generation) return@click
                         if (!handleGestureResult(ok)) return@click
+                        SettingsRepository.onActionCounted()
                         _status.update { it.copy(totalActions = it.totalActions + 1, currentIndex = replayIndex - 1) }
                         playSequenceStep(gen)
                     }
@@ -321,6 +333,7 @@ object ClickEngine {
                     ) { ok ->
                         if (gen != generation) return@swipe
                         if (!handleGestureResult(ok)) return@swipe
+                        SettingsRepository.onActionCounted()
                         _status.update { it.copy(totalActions = it.totalActions + 1, currentIndex = replayIndex - 1) }
                         playSequenceStep(gen)
                     }

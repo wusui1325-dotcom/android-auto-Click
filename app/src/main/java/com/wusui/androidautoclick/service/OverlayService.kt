@@ -275,34 +275,64 @@ class OverlayService : Service() {
                 setColor(Color.parseColor("#111111"))
                 setStroke(dp(1), Color.parseColor("#1C1C1E"))
             }
+            minimumWidth = dp(148)
         }
-        fun addBtn(label: String, action: () -> Unit) {
+        fun addBtn(label: String, muted: Boolean = false, action: () -> Unit) {
             col.addView(TextView(this).apply {
                 text = label
-                setTextColor(Color.parseColor("#F5F5F7"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                setPadding(dp(12), dp(10), dp(12), dp(10))
+                setTextColor(Color.parseColor(if (muted) "#8E8E93" else "#F5F5F7"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, if (muted) 13f else 15f)
+                setPadding(dp(12), dp(if (muted) 6 else 10), dp(12), dp(if (muted) 6 else 10))
                 setOnClickListener { action() }
             })
         }
         val st = ClickEngine.status.value
-        addBtn(if (st.running || st.replaying) "停止" else "開始") {
+        val cfg = SettingsRepository.config.value
+        val compact = cfg.compactOverlay
+
+        addBtn(if (st.active) "停止" else "開始") {
             ClickEngine.toggle(fromOverlay = true)
             rebuildControl()
         }
-        addBtn("新增點") {
-            val (w, h) = screenSize()
-            SettingsRepository.addPoint(w / 2f, h / 2f)
-            markersDirty = true
+
+        // Quick sequence switch (top N saved)
+        val saved = SettingsRepository.savedSequences.value.keys.sorted()
+        if (saved.isNotEmpty()) {
+            addBtn("— 序列快捷 —", muted = true) {}
+            val limit = if (compact) 4 else 8
+            saved.take(limit).forEach { name ->
+                val mark = if (name == cfg.activeSequenceName) "● " else "○ "
+                addBtn("$mark$name") {
+                    if (SettingsRepository.switchToSavedSequence(name)) {
+                        ClickEngine.clearError()
+                        rebuildControl()
+                    }
+                }
+            }
         }
-        addBtn("刪除最後") {
-            SettingsRepository.removeLastPoint()
-            markersDirty = true
+
+        if (!compact) {
+            addBtn("新增點") {
+                val (w, h) = screenSize()
+                SettingsRepository.addPoint(w / 2f, h / 2f)
+                markersDirty = true
+            }
+            addBtn("刪除最後") {
+                SettingsRepository.removeLastPoint()
+                markersDirty = true
+            }
+            addBtn("標記→序列步") {
+                ClickEngine.importPointsAsSequence(300)
+            }
+        } else {
+            addBtn("＋點") {
+                val (w, h) = screenSize()
+                SettingsRepository.addPoint(w / 2f, h / 2f)
+                markersDirty = true
+            }
         }
-        addBtn("標記→序列步") {
-            ClickEngine.importPointsAsSequence(300)
-        }
-        val show = SettingsRepository.config.value.showMarkers
+
+        val show = cfg.showMarkers
         addBtn(if (show) "隱藏標記" else "顯示標記") {
             SettingsRepository.updateConfig { it.copy(showMarkers = !it.showMarkers) }
             markersDirty = true

@@ -108,7 +108,7 @@ class GestureDispatcher {
                         main.postDelayed({
                             if (gen != generation) return@postDelayed
                             pump(service)
-                        }, 40)
+                        }, 60)
                     } else {
                         next.onDone(false)
                         pump(service)

@@ -53,6 +53,7 @@ import com.wusui.androidautoclick.ui.components.SectionLabel
 import com.wusui.androidautoclick.ui.components.SettingsCard
 import com.wusui.androidautoclick.ui.components.SettingsRow
 import com.wusui.androidautoclick.ui.screens.AboutScreen
+import com.wusui.androidautoclick.ui.screens.DataScreen
 import com.wusui.androidautoclick.ui.screens.ClickScreen
 import com.wusui.androidautoclick.ui.screens.OverlayScreen
 import com.wusui.androidautoclick.ui.screens.OverviewScreen
@@ -96,6 +97,7 @@ private val NAV = listOf(
     NavItem("click", "點擊設定", "操作"),
     NavItem("sequence", "序列編輯", "操作"),
     NavItem("overlay", "懸浮控制", "操作"),
+    NavItem("data", "資料與統計", "其他"),
     NavItem("about", "關於", "其他")
 )
 
@@ -198,7 +200,7 @@ fun AppShell(onThemeChange: () -> Unit = {}) {
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            if (cfg.darkTheme) "深色 · 2.0.2" else "明亮 · 2.0.2",
+                            if (cfg.darkTheme) "深色 · 2.0.3" else "明亮 · 2.0.3",
                             color = AppColors.secondary(),
                             fontSize = 12.sp
                         )
@@ -277,6 +279,7 @@ private fun Detail(
         "click" -> ClickScreen()
         "sequence" -> SequenceScreen()
         "overlay" -> OverlayScreen(overlay)
+        "data" -> DataScreen()
         "about" -> AboutScreen(onThemeChange)
         else -> OverviewScreen(a11y, overlay)
     }

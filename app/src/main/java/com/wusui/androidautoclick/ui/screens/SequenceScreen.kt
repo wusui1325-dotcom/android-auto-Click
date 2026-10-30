@@ -149,7 +149,7 @@ fun SequenceScreen() {
         SectionLabel("步驟（${steps.size}）— 視覺編輯")
         SettingsCard {
             if (steps.isEmpty()) {
-                SettingsRow("尚無步驟", subtitle = "錄製或用標記手動建步")
+                SettingsRow("尚無步驟", subtitle = "遊戲請用「標記→序列步」；標準 App 可錄製。空狀態下無法回放。")
             }
             steps.forEachIndexed { i, step ->
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -232,10 +232,10 @@ fun SequenceScreen() {
             saved.keys.sorted().forEach { name ->
                 SettingsRow(
                     title = name,
-                    subtitle = "${saved[name]?.size ?: 0} 步",
+                    subtitle = "${saved[name]?.size ?: 0} 步" + if (name == cfg.activeSequenceName) " · 目前" else "",
                     trailing = "載入",
                     showArrow = true,
-                    onClick = { SettingsRepository.loadSequence(name) }
+                    onClick = { SettingsRepository.switchToSavedSequence(name) }
                 )
                 SettingsRow(
                     title = "刪除「$name」",

@@ -42,12 +42,12 @@ fun AboutScreen(onThemeChange: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         SectionLabel("關於")
         SettingsCard {
-            SettingsRow("版本", trailing = "2.0.2")
+            SettingsRow("版本", trailing = "2.0.3")
             SettingsRow("架構", trailing = "engine / data / service / ui")
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            "免廣告 · 黑白 Settings 風 · 手勢串行＋取消軟重試 · 懸浮觸發防打斷。不收集資料。",
+            "免廣告 · Settings 風 · 預設／序列快捷／匯入匯出／統計。不收集資料。",
             color = AppColors.secondary(),
             fontSize = 12.sp
         )

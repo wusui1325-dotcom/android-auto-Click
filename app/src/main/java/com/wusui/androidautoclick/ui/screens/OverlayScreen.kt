@@ -77,10 +77,13 @@ fun OverlayScreen(overlayGranted: Boolean) {
             SwitchRow("顯示標記點", "可拖曳調整座標（中心點＝點擊點）", cfg.showMarkers) {
                 SettingsRepository.updateConfig { c -> c.copy(showMarkers = it) }
             }
+            SwitchRow("精簡懸浮選單", "長按選單優先顯示序列快捷", cfg.compactOverlay) {
+                SettingsRepository.updateConfig { c -> c.copy(compactOverlay = it) }
+            }
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            "短按懸浮鈕：開始／停止。長按：展開選單（新增點／標記→序列／隱藏標記）。拖曳標記改座標，含異形屏校正。",
+            "短按：起停。長按：精簡選單（序列快捷／＋點／標記）。拖曳標記改座標。",
             color = AppColors.secondary(),
             fontSize = 12.sp
         )
