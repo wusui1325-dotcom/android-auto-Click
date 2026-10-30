@@ -983,7 +983,8 @@ fun Caption(text: String) {
 
 @Composable
 fun DetailTopBar(title: String, onBack: () -> Unit) {
-    var pressed by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
 
     Row(
         modifier = Modifier
@@ -997,7 +998,10 @@ fun DetailTopBar(title: String, onBack: () -> Unit) {
                 .size(32.dp)
                 .clip(CircleShape)
                 .background(if (pressed) SettingsColors.circleBtnPressed else SettingsColors.circleBtn)
-                .clickable { onBack() },
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null
+                ) { onBack() },
             contentAlignment = Alignment.Center
         ) {
             Text("‹", color = SettingsColors.text, fontSize = 22.sp, fontWeight = FontWeight.Medium)
@@ -1129,10 +1133,16 @@ fun CycleRow(
     options: List<String>,
     onChange: (String) -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
+            .background(if (pressed) SettingsColors.rowActive else Color.Transparent)
+            .clickable(
+                interactionSource = interaction,
+                indication = null
+            ) {
                 val idx = options.indexOf(current).let { if (it < 0) 0 else it }
                 onChange(options[(idx + 1) % options.size])
             }
@@ -1161,10 +1171,16 @@ fun ToggleRow(
     checked: Boolean,
     onChange: (Boolean) -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onChange(!checked) }
+            .background(if (pressed) SettingsColors.rowActive else Color.Transparent)
+            .clickable(
+                interactionSource = interaction,
+                indication = null
+            ) { onChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
