@@ -1,43 +1,45 @@
 # android-auto-Click
 
-最簡潔、好看、免廣告的自動點擊 / 連點器 Android App。
+極簡、免廣告的 Android 自動點擊／連點器。UI 採 iOS Settings 式黑白平面（與 Wusper 個人中心同款語彙）。
 
-## 目標
+## 現況（1.6.2）
 
-- **極簡畫面**：iOS Settings 式黑白平面（個人中心同款）
-- **好看設計**：乾淨層級、灰階開關、無霓虹／無廣告
-- **完全免廣告**：無任何廣告、無內購干擾
-- **最佳體驗**：穩定、精準、手勢串行
+已可用：
 
-## 功能
+- **連點引擎**：手勢完成 callback 後才發下一發（串行，不 burst 漏點）
+- **模式**：單點／多點／滑動（相鄰點間 swipe）
+- **設定持久化**：間隔、次數、時長、模式、座標、常用點、序列、主題等
+- **懸浮窗**：前台服務保活、可拖曳面板與標記點、顯示座標開關
+- **序列**：錄製（真實步間延遲）、回放、匯入／匯出文字
+- **序列視覺編輯**：逐步列出點／滑／等待＋座標＋延遲；可改延遲、上移／下移、複製、刪除；變更即寫回 `SettingsStore`
+- **Settings 風 UI**：`#000` / `#f5f5f7` / `#1c1c1e`，灰階開關，無霓虹／無毛玻璃／無系統藍 CTA
 
-- 單點 / 多點 / 滑動
-- 連點（固定間隔或隨機）
-- 錄製點擊序列與回放
-- 浮動懸浮窗＋可拖曳標記點
-- 設定持久化、深色／淺色主題
+已知限制：
+
+- **遊戲自繪錄製**：無障礙只能收到系統／原生控件的 `VIEW_CLICKED`。Unity／Unreal／OpenGL／自繪 Canvas 遊戲畫面通常**錄不到**觸控。請改用手動「加入點擊／滑動」、螢幕標記點，或匯入文字序列。
+- 標記點在部分全面屏／異形屏可能有輕微座標偏移（仍可持續微調）。
+- 進階開關（鏡像、漸慢、雙擊等）執行期生效；多數已接引擎，少數未全部寫入 SharedPreferences（重開可能回預設）。
 
 ## 簽名金鑰
 
-`release.keystore` **不進公開倉**。本機／CI 請從 Google Drive 資料夾 **`android-auto-Click-secrets`** 取得，並寫入 `local.properties`（已被 gitignore）：
+`release.keystore` **不進公開倉**（已 gitignore）。本機／CI 從 Google Drive 資料夾 **`android-auto-Click-secrets`** 取得，寫入 `local.properties`：
 
 ```
 storeFile=../release.keystore
-storePassword=…   # 見 Drive 筆記
+storePassword=…
 keyAlias=release
 keyPassword=…
 ```
 
-CI 使用 repo secrets：`KEYSTORE_BASE64`、`STORE_PASSWORD`、`KEY_PASSWORD`、`KEY_ALIAS`。
+CI secrets：`KEYSTORE_BASE64`、`STORE_PASSWORD`、`KEY_PASSWORD`、`KEY_ALIAS`。
 
-## 目前狀態
+## 建置
 
-- 連點引擎（手勢完成後才下一發）
-- 滑動模式
-- 懸浮窗（簡潔狀態顯示）
-- 序列錄製／回放／編輯
-- 設定持久化、錯誤提示
-- Settings 風格 UI（1.6.0）
+```bash
+./gradlew assembleRelease
+```
+
+Push `main` 會觸發 GitHub Actions 簽 release APK 並開 GitHub Release。
 
 ## 授權
 

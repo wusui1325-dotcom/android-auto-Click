@@ -759,26 +759,37 @@ fun SequenceDetail() {
     val replaying = SequenceRecorder.isReplaying
     val steps = SequenceRecorder.steps.toList()
     val saved = SequenceRecorder.saved.toMap()
+    val delayOptions = listOf(0L, 50L, 100L, 200L, 300L, 500L, 800L, 1000L, 2000L)
 
     Spacer(Modifier.height(12.dp))
     DetailTitle("序列")
     Spacer(Modifier.height(16.dp))
 
-    SettingsSection(label = "錄製") {
-        SettingsStatusRow("開始錄製", if (recording) "錄製中 · 真實間隔" else "") { SequenceRecorder.start() }
-        SettingsStatusRow("加入測試點", "") {
-            SequenceRecorder.addClick(540f, 960f) // 真實時間戳間隔
+    SettingsSection(label = "錄製／回放") {
+        SettingsStatusRow(
+            if (recording) "停止錄製" else "開始錄製",
+            if (recording) "錄製中 · 真實間隔" else ""
+        ) {
+            if (recording) SequenceRecorder.stop() else SequenceRecorder.start()
         }
-        SettingsStatusRow("加入等待 500ms", "") { SequenceRecorder.addWait(500) }
-        SettingsStatusRow("加入測試滑動", "") {
+        SettingsStatusRow("加入點擊", "540,960") {
+            SequenceRecorder.beginAppend()
+            SequenceRecorder.addClick(540f, 960f)
+        }
+        SettingsStatusRow("加入滑動", "上滑測試") {
+            SequenceRecorder.beginAppend()
             SequenceRecorder.addSwipe(400f, 1200f, 400f, 400f)
         }
-        SettingsStatusRow("停止並儲存", "${SequenceRecorder.steps.size} 步") {
-            SequenceRecorder.stop()
-            SequenceRecorder.save("未命名 ${SequenceRecorder.saved.size + 1}")
+        SettingsStatusRow("加入等待", "500ms") {
+            SequenceRecorder.beginAppend()
+            SequenceRecorder.addWait(500)
         }
-        SettingsStatusRow("回放目前", if (replaying) "回放中" else "") {
-            if (SequenceRecorder.isReplaying) SequenceRecorder.stopReplay() else SequenceRecorder.replay()
+        SettingsStatusRow(
+            if (replaying) "停止回放" else "回放目前",
+            if (replaying) "回放中" else "${steps.size} 步"
+        ) {
+            if (SequenceRecorder.isReplaying) SequenceRecorder.stopReplay()
+            else SequenceRecorder.replay()
         }
         CycleRow(
             "回放次數",
@@ -788,43 +799,61 @@ fun SequenceDetail() {
             SequenceRecorder.replayLoops = if (v == "無限") 0 else v.toInt()
             SettingsStore.save()
         }
-        SettingsStatusRow("匯出文字", "") {
-            val text = SequenceRecorder.exportText()
-            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("sequence", text))
-        }
-        SettingsStatusRow("從剪貼簿匯入", "") {
-            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
-            SequenceRecorder.importText(text)
-        }
-        SettingsStatusRow("保留前 10 步", "") { SequenceRecorder.trimTo(10) }
-        SettingsStatusRow("複製最後一步", "") {
-            if (SequenceRecorder.steps.isNotEmpty()) SequenceRecorder.duplicateStep(SequenceRecorder.steps.lastIndex)
-        }
-        SettingsStatusRow("打亂步驟", "") { SequenceRecorder.shuffle() }
-        SettingsStatusRow("反轉步驟", "") { SequenceRecorder.reverse() }
-        SettingsStatusRow("上移最後一步", "") {
-            if (SequenceRecorder.steps.isNotEmpty()) SequenceRecorder.moveUp(SequenceRecorder.steps.lastIndex)
-        }
-        SettingsStatusRow("清空目前", "") { SequenceRecorder.clear() }
     }
 
     Spacer(Modifier.height(8.dp))
 
-    SettingsSection(label = "目前步驟") {
+    SettingsSection(label = "視覺編輯（目前步驟）") {
         if (steps.isEmpty()) {
-            SettingsStatusRow("尚無步驟", "點開始錄製") {}
+            SettingsStatusRow("尚無步驟", "錄製或手動加入") {}
         } else {
             steps.forEachIndexed { i, step ->
-                val label = when (step.type) {
-                    "click" -> "點擊 ${step.x.toInt()},${step.y.toInt()}"
-                    "swipe" -> "滑動 ${step.x.toInt()},${step.y.toInt()}→${step.x2.toInt()},${step.y2.toInt()}"
-                    "wait" -> "等待 ${step.delayMs}ms"
-                    else -> step.type
+                val title = when (step.type) {
+                    "click" -> "#$i 點擊 ${step.x.toInt()},${step.y.toInt()}"
+                    "swipe" -> "#$i 滑動 ${step.x.toInt()},${step.y.toInt()}→${step.x2.toInt()},${step.y2.toInt()}"
+                    "wait" -> "#$i 等待"
+                    else -> "#$i ${step.type}"
                 }
-                SettingsStatusRow("$i $label", "刪") { SequenceRecorder.removeAt(i) }
+                val delayLabel = "${step.delayMs}ms"
+                val delayChoices = (delayOptions + step.delayMs).distinct().sorted().map { "${it}ms" }
+                // tap cycles delay
+                CycleRow(title, delayLabel, delayChoices) { v ->
+                    val ms = v.removeSuffix("ms").toLongOrNull() ?: step.delayMs
+                    SequenceRecorder.updateDelay(i, ms)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MiniAction("上移", enabled = i > 0) { SequenceRecorder.moveUp(i) }
+                    MiniAction("下移", enabled = i < steps.lastIndex) { SequenceRecorder.moveDown(i) }
+                    MiniAction("複製", enabled = true) { SequenceRecorder.duplicateStep(i) }
+                    MiniAction("刪除", enabled = true) { SequenceRecorder.removeAt(i) }
+                }
             }
+        }
+        SettingsStatusRow("清空目前", "") { SequenceRecorder.clear() }
+        SettingsStatusRow("反轉步驟", "") { SequenceRecorder.reverse() }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    SettingsSection(label = "匯入／匯出") {
+        SettingsStatusRow("匯出文字", "剪貼簿") {
+            val t = SequenceRecorder.exportText()
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("sequence", t))
+        }
+        SettingsStatusRow("從剪貼簿匯入", "") {
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val t = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
+            SequenceRecorder.importText(t)
+        }
+        SettingsStatusRow("儲存為命名序列", "未命名 N") {
+            SequenceRecorder.stop()
+            SequenceRecorder.save("未命名 ${SequenceRecorder.saved.size + 1}")
         }
     }
 
@@ -834,8 +863,10 @@ fun SequenceDetail() {
         if (saved.isEmpty()) {
             SettingsStatusRow("尚無序列", "") {}
         } else {
-            saved.keys.forEach { name ->
-                SettingsStatusRow(name, "${saved[name]?.size ?: 0} 步") { SequenceRecorder.load(name) }
+            saved.keys.sorted().forEach { name ->
+                SettingsStatusRow(name, "${saved[name]?.size ?: 0} 步 · 載入") {
+                    SequenceRecorder.load(name)
+                }
             }
         }
         SettingsStatusRow("複製目前為新序列", "") {
@@ -845,7 +876,35 @@ fun SequenceDetail() {
     }
 
     Spacer(Modifier.height(12.dp))
-    Caption("目前 ${steps.size} 步。步間間隔取真實時間戳。錄製僅能收到無障礙 VIEW_CLICKED（系統／原生控件）；遊戲自繪／OpenGL 畫面通常錄不到，請改用手點「加入測試點／滑動」或匯入文字。點擊步驟可刪除。重開 App 會還原目前步驟與已儲存序列。")
+    Caption(
+        "步驟可改延遲（點該列循環）、上移／下移／複製／刪除；變更即寫入 SettingsStore。" +
+            "錄製僅能收到無障礙 VIEW_CLICKED（系統／原生控件）；遊戲自繪／OpenGL／Unity／Unreal 畫面通常錄不到，請改用手動加入點／滑或匯入文字。"
+    )
+}
+
+@Composable
+private fun MiniAction(label: String, enabled: Boolean, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Text(
+        label,
+        style = TextStyle(
+            fontSize = 13.sp,
+            fontWeight = FontWeight(600),
+            color = if (!enabled) SettingsColors.arrow
+            else if (pressed) SettingsColors.text
+            else SettingsColors.secondary
+        ),
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (pressed && enabled) SettingsColors.rowActive else Color.Transparent)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null
+            ) { onClick() }
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    )
 }
 
 @Composable
@@ -868,6 +927,7 @@ fun OverlayDetail(
         }
         ToggleRow("懸浮窗顯示座標", ClickController.showCoordsOnOverlay) {
             ClickController.showCoordsOnOverlay = it
+            SettingsStore.save()
         }
     }
 
@@ -883,8 +943,8 @@ fun AboutDetail(onReloadUi: () -> Unit) {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "1.6.0") {}
-        SettingsStatusRow("建置", "P0 修復＋Settings 風") {}
+        SettingsStatusRow("版本", "1.6.2") {}
+        SettingsStatusRow("建置", "序列視覺編輯＋死開關清理") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
             SequenceRecorder.stopReplay()

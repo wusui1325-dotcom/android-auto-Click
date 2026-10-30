@@ -43,6 +43,14 @@ object SequenceRecorder {
         lastStampMs = SystemClock.elapsedRealtime()
     }
 
+    /** Arm recording without clearing existing steps (for manual append). */
+    fun beginAppend() {
+        if (!isRecording) {
+            isRecording = true
+            lastStampMs = SystemClock.elapsedRealtime()
+        }
+    }
+
     fun stop() {
         isRecording = false
         SettingsStore.saveSequences()
@@ -141,6 +149,34 @@ object SequenceRecorder {
             steps[index - 1] = tmp
             SettingsStore.saveSequences()
         }
+    }
+
+    fun moveDown(index: Int) {
+        if (index >= 0 && index < steps.size - 1) {
+            val tmp = steps[index]
+            steps[index] = steps[index + 1]
+            steps[index + 1] = tmp
+            SettingsStore.saveSequences()
+        }
+    }
+
+    fun updateDelay(index: Int, delayMs: Long) {
+        if (index !in steps.indices) return
+        val s = steps[index]
+        steps[index] = s.copy(delayMs = delayMs.coerceAtLeast(0))
+        SettingsStore.saveSequences()
+    }
+
+    fun updateCoords(index: Int, x: Float? = null, y: Float? = null, x2: Float? = null, y2: Float? = null) {
+        if (index !in steps.indices) return
+        val s = steps[index]
+        steps[index] = s.copy(
+            x = x ?: s.x,
+            y = y ?: s.y,
+            x2 = x2 ?: s.x2,
+            y2 = y2 ?: s.y2
+        )
+        SettingsStore.saveSequences()
     }
 
     fun duplicateStep(index: Int) {
