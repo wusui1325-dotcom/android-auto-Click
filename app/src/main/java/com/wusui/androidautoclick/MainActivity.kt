@@ -491,6 +491,9 @@ fun ClickDetail(
             ClickController.log.take(5).forEach { line ->
                 SettingsStatusRow(line, "") {}
             }
+            SettingsStatusRow("清空記錄", "") {
+                ClickController.log.clear()
+            }
         }
     }
 
@@ -634,6 +637,8 @@ fun AboutDetail() {
         SettingsStatusRow("連點引擎", "已實作") {}
         SettingsStatusRow("懸浮窗", "已實作") {}
         SettingsStatusRow("序列回放", "已實作") {}
+        SettingsStatusRow("自動錄製", "已實作") {}
+        SettingsStatusRow("執行通知", "已實作") {}
     }
 
     Spacer(Modifier.height(8.dp))
