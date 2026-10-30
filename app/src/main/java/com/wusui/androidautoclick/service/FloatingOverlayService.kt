@@ -67,6 +67,10 @@ class FloatingOverlayService : Service() {
 
     private fun showOverlay() {
         if (overlayView != null) return
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            stopSelf()
+            return
+        }
 
         val size = if (ClickController.showCoordsOnOverlay) dp(80) else dp(64)
         val view = FrameLayout(this).apply {
