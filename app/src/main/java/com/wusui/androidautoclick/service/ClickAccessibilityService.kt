@@ -57,6 +57,7 @@ class ClickAccessibilityService : AccessibilityService() {
      * @return 是否成功送出手勢
      */
     fun performClick(x: Float, y: Float, durationMs: Long = 50): Boolean {
+        if (durationMs < 1) return false
         val path = Path().apply { moveTo(x, y) }
         val stroke = GestureDescription.StrokeDescription(path, 0, durationMs)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
