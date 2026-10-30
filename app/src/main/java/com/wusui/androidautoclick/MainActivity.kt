@@ -451,7 +451,9 @@ fun ClickDetail(
         ) {
             ClickController.toggle()
         }
-        SettingsStatusRow("總點擊", ClickController.totalClicks.toString()) {}
+        SettingsStatusRow("總點擊", ClickController.totalClicks.toString()) {
+            ClickController.resetTotal()
+        }
         SettingsStatusRow("暫停／繼續", if (ClickController.isPaused) "已暫停" else "") {
             if (ClickController.isPaused) ClickController.resume() else ClickController.pause()
         }

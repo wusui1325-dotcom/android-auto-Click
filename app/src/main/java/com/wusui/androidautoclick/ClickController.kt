@@ -44,7 +44,9 @@ object ClickController {
         appContext = context.applicationContext
     }
 
-    fun resetDefaults() {
+    fun resetTotal() {
+        totalClicks = 0
+    }
         intervalMs = 200
         durationMs = 50
         count = -1
