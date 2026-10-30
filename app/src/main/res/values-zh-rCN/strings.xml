@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoClick</string>
+    <string name="accessibility_service_description">用于在其他应用中执行精准自动点击与手势。仅在您主动开启时运作，不会收集任何数据。</string>
+
+    <string name="version_line">%1$s · 悬浮控制</string>
+    <string name="section_permissions">权限</string>
+    <string name="a11y_title">无障碍服务</string>
+    <string name="a11y_on">已开启</string>
+    <string name="a11y_off_hint">设置 → 无障碍 → AutoClick</string>
+    <string name="go_enable">去开启</string>
+    <string name="overlay_title">悬浮窗</string>
+    <string name="overlay_on">已开启</string>
+    <string name="overlay_off_hint">显示控制栏与触控点</string>
+
+    <string name="section_control_bar">控制栏</string>
+    <string name="bar_orientation">排列方向</string>
+    <string name="bar_vertical_now">当前：竖排</string>
+    <string name="bar_horizontal_now">当前：横排</string>
+    <string name="bar_to_horizontal">改横排</string>
+    <string name="bar_to_vertical">改竖排</string>
+    <string name="bar_size">控制栏大小</string>
+    <string name="bar_size_hint">当前：%1$s（点击循环：小→中→大）</string>
+    <string name="size_s">小</string>
+    <string name="size_m">中</string>
+    <string name="size_l">大</string>
+
+    <string name="section_start">开始</string>
+    <string name="bar_running_title">控制栏运行中</string>
+    <string name="bar_running_sub">可回桌面继续操作；或在此关闭</string>
+    <string name="close">关闭</string>
+    <string name="start_autoc_title">开始 AUTO-C</string>
+    <string name="start_ready_sub">选择单点／多点／录制</string>
+    <string name="start_need_perm">请先开权限</string>
+    <string name="start">开始</string>
+    <string name="section_start_type">开始类型</string>
+    <string name="session_single">单点</string>
+    <string name="session_multi">多点</string>
+    <string name="session_record">录制</string>
+    <string name="session_single_sub">一个可拖触控点</string>
+    <string name="session_multi_sub">多点＋拖拽组</string>
+    <string name="session_record_sub">录制点击（自绘画面需手动加点）</string>
+    <string name="cancel">取消</string>
+
+    <string name="section_language">语言</string>
+    <string name="lang_row_title">界面语言</string>
+    <string name="lang_zh_hant">繁體中文</string>
+    <string name="lang_zh_hans">简体中文</string>
+    <string name="lang_en">English</string>
+
+    <string name="section_help">说明</string>
+    <string name="help_title">操作概要</string>
+    <string name="help_body">控制栏黑白平面图标，可调横竖／大小、以中心拖动（收起亦可）。触控点短按定位；长按调间隔／次数／点击时长。末点间隔＝下一轮循环等待。</string>
+
+    <string name="section_about">关于</string>
+    <string name="about_title">版本信息</string>
+    <string name="about_body">AutoClick %1$s（build %2$d）\n悬浮控制栏 · 单点／多点／录制</string>
+
+    <string name="action_start">开始</string>
+    <string name="action_stop">停止</string>
+    <string name="action_add_point">加点</string>
+    <string name="action_drag">拖拽</string>
+    <string name="action_delete">删除</string>
+    <string name="action_delete_pick">选删</string>
+    <string name="action_record">录制</string>
+    <string name="action_record_stop">停录</string>
+    <string name="action_save">保存</string>
+    <string name="action_scheme">方案</string>
+    <string name="action_params">参数</string>
+    <string name="action_collapse">收起</string>
+    <string name="action_expand">展开</string>
+    <string name="action_close">关闭</string>
+
+    <string name="toast_delete_hint">点一个触控点／拖拽组以删除</string>
+    <string name="toast_delete_cancel">已取消删除</string>
+    <string name="toast_popup_fail">无法显示浮窗：%1$s</string>
+    <string name="node_popup_title">触控点 %1$d（长按调整）</string>
+    <string name="node_interval_cycle">手势完成后等待(ms)＝下轮循环</string>
+    <string name="node_interval">手势完成后等待(ms)</string>
+    <string name="node_rhythm_hint">实际节奏≈按下时长+此间隔；手势必须串行，1ms 做不到「每毫秒一点」</string>
+    <string name="node_tap_duration">点击时长(ms,≥1)</string>
+    <string name="node_click_count">单次点击次数</string>
+    <string name="apply">应用</string>
+    <string name="toast_node_updated">已更新点 %1$d</string>
+
+    <string name="params_title">参数调整</string>
+    <string name="params_cycles">循环次数(空=无限)</string>
+    <string name="params_stop_after">多久后停止(ms,0=无)</string>
+    <string name="params_global_tap">全局默认点击时长(ms)</string>
+    <string name="params_speed_hint">速度说明：系统 dispatchGesture 必须串行等 onCompleted，无法并行。节奏≈按下时长+「手势完成后再等」。</string>
+    <string name="jitter_on">点击抖动：开（防侦测）</string>
+    <string name="jitter_off">点击抖动：关</string>
+    <string name="toast_params_applied">参数已应用（按下 %1$dms）</string>
+
+    <string name="save_scheme_title">保存方案</string>
+    <string name="scheme_name_hint">方案名称</string>
+    <string name="toast_saved">已保存「%1$s」</string>
+    <string name="toast_save_fail">保存失败（需有触控点且名称非空）</string>
+    <string name="toast_no_schemes">尚无已存方案</string>
+    <string name="use_scheme_title">使用方案</string>
+    <string name="scheme_item">%1$s  ·  %2$s · %3$d 点</string>
+    <string name="toast_loaded">已载入「%1$s」</string>
+    <string name="empty_schemes_hint">还没有方案，先在控制栏「保存」吧</string>
+
+    <string name="notif_channel_status">执行状态</string>
+    <string name="notif_channel_status_desc">自动点击执行状态</string>
+    <string name="notif_channel_overlay">悬浮控制</string>
+    <string name="notif_channel_overlay_desc">悬浮窗保活通知</string>
+    <string name="notif_overlay_running">悬浮控制运行中</string>
+    <string name="notif_overlay_bar">AUTO-C 控制栏</string>
+    <string name="notif_running_title">AutoClick 执行中</string>
+    <string name="notif_executed">已执行 %1$d</string>
+    <string name="status_running">执行中</string>
+    <string name="status_stopped">已停止</string>
+    <string name="err_stop_recording">请先停止录制</string>
+    <string name="err_need_a11y">请先开启无障碍服务</string>
+    <string name="err_stop_running">请先停止执行</string>
+    <string name="err_no_points">还没有触控点／拖拽组</string>
+    <string name="status_recording">录制中</string>
+    <string name="status_record_done">录制结束</string>
+    <string name="err_a11y_disconnected">无障碍服务已断开</string>
+    <string name="status_cycle_order">循环 %1$d · 序 %2$d</string>
+    <string name="err_gesture_failed">手势失败（触控打断或无障碍已断）</string>
+</resources>

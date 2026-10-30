@@ -9,9 +9,15 @@ import com.wusui.androidautoclick.R
 import java.util.Locale
 
 enum class AppLang(val tag: String) {
-    ZH_HANT("zh-Hant"),
-    ZH_HANS("zh-Hans"),
+    ZH_HANT("zh-TW"),
+    ZH_HANS("zh-CN"),
     EN("en");
+
+    fun toLocale(): Locale = when (this) {
+        ZH_HANT -> Locale.TRADITIONAL_CHINESE // zh-TW
+        ZH_HANS -> Locale.SIMPLIFIED_CHINESE  // zh-CN
+        EN -> Locale.ENGLISH
+    }
 
     fun labelRes(): Int = when (this) {
         ZH_HANT -> R.string.lang_zh_hant
@@ -22,22 +28,45 @@ enum class AppLang(val tag: String) {
     companion object {
         fun fromTag(tag: String?): AppLang {
             val t = tag?.trim().orEmpty()
-            return entries.firstOrNull { it.tag.equals(t, ignoreCase = true) }
-                ?: when {
-                    t.startsWith("zh-Hans", true) || t.equals("zh-CN", true) ||
-                        t.equals("zh-SG", true) -> ZH_HANS
-                    t.startsWith("en", true) -> EN
-                    else -> ZH_HANT
-                }
+            return when {
+                t.equals("zh-TW", true) || t.equals("zh-HK", true) || t.equals("zh-MO", true) ||
+                    t.equals("zh-Hant", true) || t.startsWith("zh-Hant", true) -> ZH_HANT
+                t.equals("zh-CN", true) || t.equals("zh-SG", true) ||
+                    t.equals("zh-Hans", true) || t.startsWith("zh-Hans", true) -> ZH_HANS
+                t.startsWith("en", true) -> EN
+                t.equals("zh", true) -> ZH_HANT
+                else -> entries.firstOrNull { it.tag.equals(t, ignoreCase = true) } ?: ZH_HANT
+            }
         }
     }
 }
 
 object LocaleHelper {
 
+    private const val PREF = "autoclick_v3"
+    private const val KEY = "appLanguage"
+
+    fun readPersistedTag(base: Context): String {
+        val raw = base.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .getString(KEY, null)
+        return AppLang.fromTag(raw).tag
+    }
+
     fun apply(tag: String) {
         val lang = AppLang.fromTag(tag)
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(lang.tag))
+    }
+
+    /** Wrap before AppStore.init (Application / Activity attachBaseContext). */
+    fun wrapBoot(base: Context): Context = wrapWithTag(base, readPersistedTag(base))
+
+    fun wrapWithTag(base: Context, tag: String): Context {
+        val lang = AppLang.fromTag(tag)
+        val locale = lang.toLocale()
+        Locale.setDefault(locale)
+        val config = Configuration(base.resources.configuration)
+        config.setLocales(LocaleList(locale))
+        return base.createConfigurationContext(config)
     }
 
     /** Context whose resources match the persisted app language. */
@@ -45,12 +74,9 @@ object LocaleHelper {
         val tag = try {
             com.wusui.androidautoclick.data.AppStore.language.value
         } catch (_: Exception) {
-            AppLang.ZH_HANT.tag
+            readPersistedTag(base)
         }
-        val locale = Locale.forLanguageTag(AppLang.fromTag(tag).tag)
-        val config = Configuration(base.resources.configuration)
-        config.setLocales(LocaleList(locale))
-        return base.createConfigurationContext(config)
+        return wrapWithTag(base, tag)
     }
 
     fun str(base: Context, resId: Int): String = localized(base).getString(resId)

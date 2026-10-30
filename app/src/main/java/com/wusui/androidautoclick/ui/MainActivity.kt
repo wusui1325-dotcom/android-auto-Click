@@ -1,8 +1,10 @@
 package com.wusui.androidautoclick.ui
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -41,18 +43,24 @@ import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
 import com.wusui.androidautoclick.engine.SessionType
 import com.wusui.androidautoclick.i18n.AppLang
+import com.wusui.androidautoclick.i18n.LocaleHelper
 import com.wusui.androidautoclick.service.OverlayService
 import com.wusui.androidautoclick.service.PermissionHelper
 import com.wusui.androidautoclick.ui.components.SectionLabel
 import com.wusui.androidautoclick.ui.components.SettingsCard
 import com.wusui.androidautoclick.ui.components.SettingsRow
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrapBoot(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             SettingsTheme {
+                // language collected inside; recreate already applied new attachBaseContext
                 HomeScreen()
             }
         }
@@ -146,7 +154,11 @@ private fun HomeScreen() {
                     trailing = if (selected) "✓" else "",
                     showArrow = !selected,
                     onClick = {
-                        if (!selected) AppStore.setLanguage(lang.tag)
+                        if (!selected) {
+                            AppStore.setLanguage(lang.tag)
+                            // AppCompat locales alone may not refresh Compose stringResource
+                            (context as? Activity)?.recreate()
+                        }
                     }
                 )
             }
