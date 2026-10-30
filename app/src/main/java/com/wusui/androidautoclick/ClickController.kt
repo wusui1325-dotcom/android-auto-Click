@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var doubleTap: Boolean = false // 每次點兩下
+    var longPress: Boolean = false // 長按式點擊（延長 duration）
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -146,7 +146,8 @@ object ClickController {
                     x += (kotlin.random.Random.nextInt(-range, range + 1)).toFloat()
                     y += (kotlin.random.Random.nextInt(-range, range + 1)).toFloat()
                 }
-                val ok = service.performClick(x, y, durationMs)
+                val dur = if (longPress) durationMs * 4 else durationMs
+                val ok = service.performClick(x, y, dur)
                 if (doubleTap) service.performClick(x, y, durationMs)
                 if (!ok && stopOnError) {
                     addLog("手勢失敗，停止")

@@ -603,6 +603,9 @@ fun ClickDetail(
         ToggleRow("慢啟動", ClickController.slowStart) {
             ClickController.slowStart = it
         }
+        ToggleRow("長按式", ClickController.longPress) {
+            ClickController.longPress = it
+        }
         ToggleRow("雙擊", ClickController.doubleTap) {
             ClickController.doubleTap = it
         }
