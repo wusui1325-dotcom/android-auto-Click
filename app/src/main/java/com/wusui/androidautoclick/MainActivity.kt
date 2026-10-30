@@ -513,6 +513,9 @@ fun SequenceDetail() {
         SettingsStatusRow("加入等待 500ms", "") {
             SequenceRecorder.addWait(500)
         }
+        SettingsStatusRow("加入測試滑動", "") {
+            SequenceRecorder.addSwipe(400f, 1200f, 400f, 400f, 300)
+        }
         SettingsStatusRow("停止並儲存", "${SequenceRecorder.steps.size} 步") {
             SequenceRecorder.stop()
             SequenceRecorder.save("未命名 ${SequenceRecorder.saved.size + 1}")
@@ -538,6 +541,7 @@ fun SequenceDetail() {
             SequenceRecorder.steps.forEachIndexed { i, step ->
                 val label = when (step.type) {
                     "click" -> "點擊 ${step.x.toInt()},${step.y.toInt()}"
+                    "swipe" -> "滑動 ${step.x.toInt()},${step.y.toInt()}→${step.x2.toInt()},${step.y2.toInt()}"
                     "wait" -> "等待 ${step.delayMs}ms"
                     else -> step.type
                 }

@@ -10,9 +10,11 @@ import com.wusui.androidautoclick.service.ClickAccessibilityService
 object SequenceRecorder {
 
     data class Step(
-        val type: String, // "click" | "wait"
+        val type: String, // "click" | "wait" | "swipe"
         val x: Float = 0f,
         val y: Float = 0f,
+        val x2: Float = 0f,
+        val y2: Float = 0f,
         val delayMs: Long = 0
     )
 
@@ -40,9 +42,9 @@ object SequenceRecorder {
         steps.add(Step("click", x, y, delayMs))
     }
 
-    fun addWait(ms: Long) {
+    fun addSwipe(x1: Float, y1: Float, x2: Float, y2: Float, delayMs: Long = 300) {
         if (!isRecording) return
-        steps.add(Step("wait", delayMs = ms))
+        steps.add(Step("swipe", x1, y1, x2, y2, delayMs))
     }
 
     fun removeAt(index: Int) {
@@ -88,6 +90,7 @@ object SequenceRecorder {
         val step = steps[replayIndex++]
         when (step.type) {
             "click" -> service.performClick(step.x, step.y, ClickController.durationMs)
+            "swipe" -> service.performSwipe(step.x, step.y, step.x2, step.y2, step.delayMs)
             "wait" -> {}
         }
         handler.postDelayed({ playNext(service) }, step.delayMs.coerceAtLeast(50))
