@@ -227,6 +227,7 @@ object ClickController {
 
                 if (isRunning) {
                     var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
+                    if (delay < 10) delay = 10
                     if (jitterInterval) delay += kotlin.random.Random.nextLong(-10, 11)
                     if (invertInterval && totalClicks > 0) delay = (delay * 0.95).toLong().coerceAtLeast(20)
                     if (decelerate && totalClicks > 0) delay = (delay * 1.05).toLong()
