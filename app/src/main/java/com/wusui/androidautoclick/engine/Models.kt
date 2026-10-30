@@ -38,7 +38,8 @@ data class GlobalParams(
     val stopAfterMs: Long = 0L,
     /** Small random offset on each tap (anti-detect). */
     val jitter: Boolean = false,
-    val tapDurationMs: Long = 50L,
+    /** Press duration per tap (ms). Floor 1; system serial — cannot overlap. Default ~1 frame. */
+    val tapDurationMs: Long = 16L,
     val swipeDurationMs: Long = 280L
 )
 

@@ -721,11 +721,17 @@ class OverlayService : Service() {
         val ordered = AppStore.orderedNodes()
         val isLast = ordered.lastOrNull()?.id == live.id
         val intervalLabel = if (isLast) {
-            "與下次間隔(ms)＝下一輪循環等待"
+            "手勢完成後再等(ms)＝下輪循環"
         } else {
-            "與下一序間隔(ms)"
+            "手勢完成後再等(ms)"
         }
         showPanel("觸控點 ${live.order}（長按調整）") {
+            addView(TextView(this@OverlayService).apply {
+                text = "實際節奏≈按下時長+此間隔；手勢必須串行，1ms 做不到「每毫秒一點」"
+                setTextColor(Color.parseColor("#6E6E73"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                setPadding(0, 0, 0, dp(6))
+            })
             val (r1, etInterval) = fieldRow(intervalLabel, live.intervalToNextMs.toString())
             addView(r1)
             val (r2, etClicks) = fieldRow("單次點擊次數", live.clickCount.toString())
@@ -762,10 +768,12 @@ class OverlayService : Service() {
             addView(r1)
             val (r2, etStop) = fieldRow("多久後停止(ms,0=無)", p.stopAfterMs.toString())
             addView(r2)
+            val (r3, etTap) = fieldRow("單下按下時長(ms,≥1)", p.tapDurationMs.toString())
+            addView(r3)
             addView(TextView(this@OverlayService).apply {
-                text = "循環間隔＝最後一點「與下次間隔」（無獨立循環間隙）"
+                text = "速度說明：系統 dispatchGesture 必須串行等 onCompleted，無法並行。節奏≈按下時長+「手勢完成後再等」。舊版曾誤用 TapTimeout≈100ms 當按下下限並多加 40ms，已去掉。"
                 setTextColor(Color.parseColor("#6E6E73"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
                 setPadding(0, dp(4), 0, dp(8))
             })
             var jitter = p.jitter
@@ -791,9 +799,12 @@ class OverlayService : Service() {
                         if (it.isBlank()) -1 else it.toIntOrNull() ?: p.cycleCount
                     }
                     val stop = etStop.text.toString().toLongOrNull()?.coerceAtLeast(0) ?: p.stopAfterMs
-                    AppStore.setParams(p.copy(cycleCount = cycles, stopAfterMs = stop, jitter = jitter))
+                    val tap = etTap.text.toString().toLongOrNull()?.coerceAtLeast(1) ?: p.tapDurationMs
+                    AppStore.setParams(
+                        p.copy(cycleCount = cycles, stopAfterMs = stop, jitter = jitter, tapDurationMs = tap)
+                    )
                     dismissPopup()
-                    toast("參數已套用")
+                    toast("參數已套用（按下 ${tap}ms）")
                 }
             })
         }

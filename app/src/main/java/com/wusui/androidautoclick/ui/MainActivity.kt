@@ -105,7 +105,7 @@ private fun HomeScreen() {
             letterSpacing = (-0.02).em
         )
         Spacer(Modifier.height(4.dp))
-        Text("3.0.2 · 懸浮控制", color = AppColors.secondary(), fontSize = 12.sp)
+        Text("3.0.3 · 懸浮控制", color = AppColors.secondary(), fontSize = 12.sp)
         Spacer(Modifier.height(20.dp))
 
         SectionLabel("權限")

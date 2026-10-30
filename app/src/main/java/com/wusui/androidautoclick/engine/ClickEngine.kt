@@ -220,10 +220,9 @@ object ClickEngine {
             if (gen != generation) return@click
             if (!okResult(ok)) return@click
             bumpAction()
-            // Brief gap between multi-taps on same point
-            main.postDelayed({
-                runClicks(gen, service, node, params, done + 1, gapAfter)
-            }, 40L)
+            // No extra delay: GestureDispatcher is already strictly serial.
+            // Next tap / interval waits only for onCompleted + gapAfter.
+            runClicks(gen, service, node, params, done + 1, gapAfter)
         }
     }
 
@@ -236,8 +235,12 @@ object ClickEngine {
 
     private fun bumpAction() {
         _status.update { it.copy(totalActions = it.totalActions + 1) }
-        AppStore.appContext?.let {
-            ClickNotification.showRunning(it, "已執行 ${_status.value.totalActions}")
+        val n = _status.value.totalActions
+        // Avoid notifying every tap (binder cost) — every 8th + first
+        if (n == 1 || n % 8 == 0) {
+            AppStore.appContext?.let {
+                ClickNotification.showRunning(it, "已執行 $n")
+            }
         }
     }
 
