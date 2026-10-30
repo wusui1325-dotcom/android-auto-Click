@@ -466,6 +466,20 @@ fun ClickDetail(
         SettingsStatusRow("點 1", pointsText(0)) {}
         SettingsStatusRow("點 2", pointsText(1)) {}
         SettingsStatusRow("點 3", pointsText(2)) {}
+        CycleRow("最後點 X", ClickController.points.lastOrNull()?.first?.toInt()?.toString() ?: "540",
+            listOf(200, 400, 540, 700, 900).map { it.toString() }) { v ->
+            val y = ClickController.points.lastOrNull()?.second ?: 960f
+            if (ClickController.points.isNotEmpty()) {
+                ClickController.points[ClickController.points.lastIndex] = v.toFloat() to y
+            }
+        }
+        CycleRow("最後點 Y", ClickController.points.lastOrNull()?.second?.toInt()?.toString() ?: "960",
+            listOf(400, 700, 960, 1200, 1600).map { it.toString() }) { v ->
+            val x = ClickController.points.lastOrNull()?.first ?: 540f
+            if (ClickController.points.isNotEmpty()) {
+                ClickController.points[ClickController.points.lastIndex] = x to v.toFloat()
+            }
+        }
         SettingsStatusRow("新增點", "") {
             ClickController.addPoint(540f, 960f)
         }
