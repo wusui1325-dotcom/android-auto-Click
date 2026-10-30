@@ -539,9 +539,11 @@ fun ClickDetail(
         }
         SettingsStatusRow("單次測試", "") {
             val p = ClickController.points.firstOrNull() ?: return@SettingsStatusRow
+            if (!ClickAccessibilityService.isEnabled()) return@SettingsStatusRow
             ClickAccessibilityService.instance?.performClick(p.first, p.second, ClickController.durationMs)
         }
         SettingsStatusRow("測試滑動", "") {
+            if (!ClickAccessibilityService.isEnabled()) return@SettingsStatusRow
             ClickAccessibilityService.instance?.performSwipe(400f, 1200f, 400f, 400f, 300)
         }
     }
