@@ -26,6 +26,11 @@ object ClickNotification {
     }
 
     fun showRunning(context: Context, text: String) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
         ensureChannel(context)
         val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val n = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

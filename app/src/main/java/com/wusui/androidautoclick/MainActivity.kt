@@ -43,8 +43,19 @@ class MainActivity : ComponentActivity() {
                 AppShell()
             }
         }
-        window.statusBarColor = if (SettingsColors.isDark) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#F2F2F7")
-        window.navigationBarColor = if (SettingsColors.isDark) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#F2F2F7")
+        updateSystemBars()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateSystemBars()
+    }
+
+    private fun updateSystemBars() {
+        val color = if (SettingsColors.isDark) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#F2F2F7")
+        window.statusBarColor = color
+        window.navigationBarColor = color
+    }
     }
 }
 
@@ -929,6 +940,11 @@ fun AboutDetail() {
         SettingsStatusRow("切換主題", if (SettingsColors.isDark) "深色" else "淺色") {
             SettingsColors.isDark = !SettingsColors.isDark
             SettingsStore.save()
+            (context as? android.app.Activity)?.let { act ->
+                val color = if (SettingsColors.isDark) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#F2F2F7")
+                act.window.statusBarColor = color
+                act.window.navigationBarColor = color
+            }
         }
         SettingsStatusRow("授權", "MIT") {}
     }

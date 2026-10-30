@@ -129,6 +129,10 @@ object ClickController {
 
     fun start(): Boolean {
         if (isRunning) return true
+        if (points.isEmpty()) {
+            lastError = "沒有點擊座標"
+            return false
+        }
         val service = ClickAccessibilityService.instance ?: return false
         isRunning = true
         remaining = count
@@ -164,7 +168,7 @@ object ClickController {
                     return
                 }
 
-                val base = if (mode == "多點" && points.size > 1) points else listOf(points.first())
+                val base = if (mode == "多點" && points.size > 1) points.toList() else listOf(points.first())
                 val usePoints = if (reversePoints) base.reversed() else base
                 val idx = if (randomPoint && usePoints.size > 1) kotlin.random.Random.nextInt(usePoints.size) else pointIndex % usePoints.size
                 var (x, y) = usePoints[idx]
