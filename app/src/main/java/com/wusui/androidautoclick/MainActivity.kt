@@ -477,6 +477,9 @@ fun SequenceDetail() {
         SettingsStatusRow("加入測試點", "") {
             SequenceRecorder.addClick(540f, 960f, ClickController.intervalMs)
         }
+        SettingsStatusRow("加入等待 500ms", "") {
+            SequenceRecorder.addWait(500)
+        }
         SettingsStatusRow("停止並儲存", "${SequenceRecorder.steps.size} 步") {
             SequenceRecorder.stop()
             SequenceRecorder.save("未命名 ${SequenceRecorder.saved.size + 1}")
