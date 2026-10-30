@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var clickOnDown: Boolean = false // 按下即點（佔位）
+    var burstCount: Int = 1 // 每次觸發連點數
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -129,6 +129,12 @@ object ClickController {
                 }
                 service.performClick(x, y, durationMs)
                 totalClicks++
+                if (burstCount > 1) {
+                    repeat(burstCount - 1) {
+                        service.performClick(x, y, durationMs)
+                        totalClicks++
+                    }
+                }
                 if (soundOnClick) {
                     android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 40)
                         .startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 30)
