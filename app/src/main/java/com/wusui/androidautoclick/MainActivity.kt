@@ -43,8 +43,8 @@ class MainActivity : ComponentActivity() {
                 AppShell()
             }
         }
-        window.statusBarColor = android.graphics.Color.BLACK
-        window.navigationBarColor = android.graphics.Color.BLACK
+        window.statusBarColor = if (SettingsColors.isDark) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#F2F2F7")
+        window.navigationBarColor = if (SettingsColors.isDark) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#F2F2F7")
     }
 }
 
