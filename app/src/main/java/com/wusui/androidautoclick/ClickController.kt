@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var safeMode: Boolean = false // 強制最低間隔 100ms
+    var debugLog: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -201,6 +201,7 @@ object ClickController {
                     android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 40)
                         .startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 30)
                 }
+                if (debugLog) addLog("idx=$pointIndex x=${x.toInt()} y=${y.toInt()} rem=$remaining")
                 if (logClicks && (logEvery <= 1 || totalClicks % logEvery == 0)) addLog("點擊 ${x.toInt()},${y.toInt()}")
 
                 if (usePoints.size > 1) {
