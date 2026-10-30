@@ -47,6 +47,14 @@ object ClickController {
 
     val favoritePoints = mutableListOf<Pair<Float, Float>>()
 
+    fun clearError() {
+        lastError = ""
+    }
+
+    fun resetTotal() {
+        totalClicks = 0
+    }
+
     fun saveFavorite() {
         points.lastOrNull()?.let { favoritePoints.add(it) }
     }

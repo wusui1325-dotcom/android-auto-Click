@@ -880,6 +880,9 @@ fun AboutDetail() {
             ClickController.stop()
             SequenceRecorder.stopReplay()
         }
+        SettingsStatusRow("清除錯誤", "") {
+            ClickController.clearError()
+        }
         SettingsStatusRow("重設預設", "") {
             ClickController.resetDefaults()
             SettingsStore.save()
