@@ -609,6 +609,9 @@ fun ClickDetail(
         ToggleRow("雙擊", ClickController.doubleTap) {
             ClickController.doubleTap = it
         }
+        CycleRow("記錄每 N", ClickController.logEvery.toString(), listOf(1, 5, 10, 50).map { it.toString() }) { v ->
+            ClickController.logEvery = v.toInt()
+        }
         ToggleRow("記錄點擊", ClickController.logClicks) {
             ClickController.logClicks = it
         }
