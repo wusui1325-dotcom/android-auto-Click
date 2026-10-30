@@ -24,8 +24,12 @@ object ClickController {
         points.add(540f to 960f)
     }
 
-    var isRunning: Boolean = false
+    var remainingDisplay: String = ""
         private set
+
+    private fun updateRemaining() {
+        remainingDisplay = if (count < 0) "∞" else remaining.coerceAtLeast(0).toString()
+    }
 
     private val handler = Handler(Looper.getMainLooper())
     private var runnable: Runnable? = null
@@ -38,6 +42,7 @@ object ClickController {
         isRunning = true
         remaining = count
         pointIndex = 0
+        updateRemaining()
 
         runnable = object : Runnable {
             override fun run() {
@@ -54,6 +59,7 @@ object ClickController {
                     pointIndex = (pointIndex + 1) % points.size
                 }
                 if (count >= 0) remaining--
+                updateRemaining()
 
                 if (isRunning) {
                     handler.postDelayed(this, intervalMs)

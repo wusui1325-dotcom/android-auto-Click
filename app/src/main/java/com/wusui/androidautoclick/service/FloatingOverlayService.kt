@@ -4,6 +4,8 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -33,7 +35,15 @@ class FloatingOverlayService : Service() {
     private var overlayView: View? = null
     private var layoutParams: WindowManager.LayoutParams? = null
 
-    private var isClicking = false
+    private val refreshHandler = Handler(Looper.getMainLooper())
+    private val refreshRunnable = object : Runnable {
+        override fun run() {
+            if (ClickController.isRunning) {
+                updateButtonText()
+                refreshHandler.postDelayed(this, 300)
+            }
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -104,9 +114,21 @@ class FloatingOverlayService : Service() {
 
     private fun toggleClicking() {
         ClickController.toggle()
-        isClicking = ClickController.isRunning
-        val button = (overlayView as? FrameLayout)?.getChildAt(0) as? TextView
-        button?.text = if (isClicking) "■" else "▶"
+        if (ClickController.isRunning) {
+            refreshHandler.post(refreshRunnable)
+        } else {
+            refreshHandler.removeCallbacks(refreshRunnable)
+        }
+        updateButtonText()
+    }
+
+    private fun updateButtonText() {
+        val button = (overlayView as? FrameLayout)?.getChildAt(0) as? TextView ?: return
+        button.text = if (ClickController.isRunning) {
+            ClickController.remainingDisplay.ifEmpty { "■" }
+        } else {
+            "▶"
+        }
     }
 
     private fun setupDrag(container: View, button: View, params: WindowManager.LayoutParams) {
@@ -155,6 +177,7 @@ class FloatingOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        refreshHandler.removeCallbacks(refreshRunnable)
         removeOverlay()
         isRunning = false
         super.onDestroy()
