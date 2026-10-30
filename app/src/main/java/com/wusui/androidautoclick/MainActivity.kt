@@ -415,6 +415,12 @@ fun ClickDetail(
         CycleRow("持續時間", "$duration ms", listOf(20, 50, 100, 200).map { "$it ms" }) { v ->
             onDuration(v.removeSuffix(" ms").toInt())
         }
+        SettingsStatusRow(
+            "狀態",
+            if (ClickController.isRunning) "執行中" else "停止"
+        ) {
+            ClickController.toggle()
+        }
     }
 
     Spacer(Modifier.height(8.dp))
