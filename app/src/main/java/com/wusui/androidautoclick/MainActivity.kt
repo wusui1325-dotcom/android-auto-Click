@@ -538,6 +538,9 @@ fun ClickDetail(
         ToggleRow("隨機偏移", randomOffset) { onRandomOffset(it) }
         ToggleRow("隨機間隔", randomInterval) { onRandomInterval(it) }
         ToggleRow("防偵測延遲", antiDetect) { onAntiDetect(it) }
+        ToggleRow("開始震動", ClickController.vibrateOnStart) {
+            ClickController.vibrateOnStart = it
+        }
     }
 
     Spacer(Modifier.height(8.dp))

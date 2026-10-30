@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var startDelayMs: Long = 0
+    var vibrateOnStart: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -90,7 +90,13 @@ object ClickController {
         startTimeMs = System.currentTimeMillis()
         updateRemaining()
         addLog("開始")
-        appContext?.let { ClickNotification.showRunning(it, "執行中") }
+        appContext?.let { ctx ->
+            ClickNotification.showRunning(ctx, "執行中")
+            if (vibrateOnStart) {
+                val vib = ctx.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                vib?.vibrate(android.os.VibrationEffect.createOneShot(40, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            }
+        }
 
         runnable = object : Runnable {
             override fun run() {
