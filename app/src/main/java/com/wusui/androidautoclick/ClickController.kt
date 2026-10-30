@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var mirrorX: Boolean = false // 水平鏡像座標
+    var mirrorY: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -129,6 +129,10 @@ object ClickController {
                 if (mirrorX) {
                     val dm = appContext?.resources?.displayMetrics
                     if (dm != null) x = dm.widthPixels - x
+                }
+                if (mirrorY) {
+                    val dm = appContext?.resources?.displayMetrics
+                    if (dm != null) y = dm.heightPixels - y
                 }
                 if (randomOffset || humanize) {
                     val range = if (humanize) 3 else 8
