@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoClick</string>
+    <string name="accessibility_service_description">用於在其他應用中執行精準自動點擊與手勢。僅在您主動開啟時運作，不會收集任何資料。</string>
+</resources>
