@@ -590,6 +590,9 @@ fun ClickDetail(
         ToggleRow("結束提示音", ClickController.endBeep) {
             ClickController.endBeep = it
         }
+        ToggleRow("漸慢", ClickController.decelerate) {
+            ClickController.decelerate = it
+        }
         ToggleRow("漸快", ClickController.invertInterval) {
             ClickController.invertInterval = it
         }
