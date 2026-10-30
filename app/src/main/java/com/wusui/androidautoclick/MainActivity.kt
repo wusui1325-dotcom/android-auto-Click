@@ -48,7 +48,6 @@ private object SettingsColors {
     val selected: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA)
     val card: Color get() = if (isDark) Color(0xFF111111) else Color.White
     val cardBorder: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFD1D1D6)
-    val rowActive: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA)
     val arrow: Color = Color(0xFF636366)
     val circleBtn: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA)
     val circleBtnPressed: Color get() = if (isDark) Color(0xFF2C2C2E) else Color(0xFFD1D1D6)
@@ -77,6 +76,20 @@ fun AppShell() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var accessibilityOn by remember { mutableStateOf(PermissionHelper.isAccessibilityEnabled(context)) }
     var overlayOn by remember { mutableStateOf(PermissionHelper.canDrawOverlay(context)) }
+
+    // 佔位狀態（後續接真實引擎）
+    var clickMode by remember { mutableStateOf("單點") }
+    var interval by remember { mutableStateOf(200) }
+    var count by remember { mutableStateOf("無限") }
+    var duration by remember { mutableStateOf(50) }
+    var randomOffset by remember { mutableStateOf(false) }
+    var randomInterval by remember { mutableStateOf(false) }
+    var antiDetect by remember { mutableStateOf(false) }
+    var floatButton by remember { mutableStateOf(false) }
+    var showRemain by remember { mutableStateOf(true) }
+    var draggable by remember { mutableStateOf(true) }
+    var opacity by remember { mutableStateOf(90) }
+    var floatSize by remember { mutableStateOf("中") }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -116,6 +129,30 @@ fun AppShell() {
                     selected = selected ?: "permissions",
                     accessibilityOn = accessibilityOn,
                     overlayOn = overlayOn,
+                    clickMode = clickMode,
+                    onClickMode = { clickMode = it },
+                    interval = interval,
+                    onInterval = { interval = it },
+                    count = count,
+                    onCount = { count = it },
+                    duration = duration,
+                    onDuration = { duration = it },
+                    randomOffset = randomOffset,
+                    onRandomOffset = { randomOffset = it },
+                    randomInterval = randomInterval,
+                    onRandomInterval = { randomInterval = it },
+                    antiDetect = antiDetect,
+                    onAntiDetect = { antiDetect = it },
+                    floatButton = floatButton,
+                    onFloatButton = { floatButton = it },
+                    showRemain = showRemain,
+                    onShowRemain = { showRemain = it },
+                    draggable = draggable,
+                    onDraggable = { draggable = it },
+                    opacity = opacity,
+                    onOpacity = { opacity = it },
+                    floatSize = floatSize,
+                    onFloatSize = { floatSize = it },
                     onOpenAccessibility = { PermissionHelper.openAccessibilitySettings(context) },
                     onOpenOverlay = { PermissionHelper.openOverlaySettings(context) },
                     modifier = Modifier.fillMaxSize()
@@ -126,11 +163,11 @@ fun AppShell() {
                 targetState = selected,
                 transitionSpec = {
                     if (targetState != null) {
-                        slideInHorizontally { fullWidth -> fullWidth } + fadeIn() togetherWith
-                            slideOutHorizontally { fullWidth -> -fullWidth / 3 } + fadeOut()
+                        slideInHorizontally { it } + fadeIn() togetherWith
+                            slideOutHorizontally { -it / 3 } + fadeOut()
                     } else {
-                        slideInHorizontally { fullWidth -> -fullWidth / 3 } + fadeIn() togetherWith
-                            slideOutHorizontally { fullWidth -> fullWidth } + fadeOut()
+                        slideInHorizontally { -it / 3 } + fadeIn() togetherWith
+                            slideOutHorizontally { it } + fadeOut()
                     }
                 },
                 label = "nav"
@@ -143,14 +180,35 @@ fun AppShell() {
                     )
                 } else {
                     Column(Modifier.fillMaxSize()) {
-                        DetailTopBar(
-                            title = titleFor(page),
-                            onBack = { selected = null }
-                        )
+                        DetailTopBar(title = titleFor(page), onBack = { selected = null })
                         DetailPane(
                             selected = page,
                             accessibilityOn = accessibilityOn,
                             overlayOn = overlayOn,
+                            clickMode = clickMode,
+                            onClickMode = { clickMode = it },
+                            interval = interval,
+                            onInterval = { interval = it },
+                            count = count,
+                            onCount = { count = it },
+                            duration = duration,
+                            onDuration = { duration = it },
+                            randomOffset = randomOffset,
+                            onRandomOffset = { randomOffset = it },
+                            randomInterval = randomInterval,
+                            onRandomInterval = { randomInterval = it },
+                            antiDetect = antiDetect,
+                            onAntiDetect = { antiDetect = it },
+                            floatButton = floatButton,
+                            onFloatButton = { floatButton = it },
+                            showRemain = showRemain,
+                            onShowRemain = { showRemain = it },
+                            draggable = draggable,
+                            onDraggable = { draggable = it },
+                            opacity = opacity,
+                            onOpacity = { opacity = it },
+                            floatSize = floatSize,
+                            onFloatSize = { floatSize = it },
                             onOpenAccessibility = { PermissionHelper.openAccessibilitySettings(context) },
                             onOpenOverlay = { PermissionHelper.openOverlaySettings(context) },
                             modifier = Modifier.fillMaxSize()
@@ -209,6 +267,30 @@ fun DetailPane(
     selected: String,
     accessibilityOn: Boolean,
     overlayOn: Boolean,
+    clickMode: String,
+    onClickMode: (String) -> Unit,
+    interval: Int,
+    onInterval: (Int) -> Unit,
+    count: String,
+    onCount: (String) -> Unit,
+    duration: Int,
+    onDuration: (Int) -> Unit,
+    randomOffset: Boolean,
+    onRandomOffset: (Boolean) -> Unit,
+    randomInterval: Boolean,
+    onRandomInterval: (Boolean) -> Unit,
+    antiDetect: Boolean,
+    onAntiDetect: (Boolean) -> Unit,
+    floatButton: Boolean,
+    onFloatButton: (Boolean) -> Unit,
+    showRemain: Boolean,
+    onShowRemain: (Boolean) -> Unit,
+    draggable: Boolean,
+    onDraggable: (Boolean) -> Unit,
+    opacity: Int,
+    onOpacity: (Int) -> Unit,
+    floatSize: String,
+    onFloatSize: (String) -> Unit,
     onOpenAccessibility: () -> Unit,
     onOpenOverlay: () -> Unit,
     modifier: Modifier = Modifier
@@ -220,9 +302,24 @@ fun DetailPane(
     ) {
         when (selected) {
             "permissions" -> PermissionsDetail(accessibilityOn, overlayOn, onOpenAccessibility, onOpenOverlay)
-            "click" -> ClickDetail()
+            "click" -> ClickDetail(
+                clickMode, onClickMode,
+                interval, onInterval,
+                count, onCount,
+                duration, onDuration,
+                randomOffset, onRandomOffset,
+                randomInterval, onRandomInterval,
+                antiDetect, onAntiDetect
+            )
             "sequence" -> SequenceDetail()
-            "overlay" -> OverlayDetail(overlayOn, onOpenOverlay)
+            "overlay" -> OverlayDetail(
+                overlayOn, onOpenOverlay,
+                floatButton, onFloatButton,
+                showRemain, onShowRemain,
+                draggable, onDraggable,
+                opacity, onOpacity,
+                floatSize, onFloatSize
+            )
             "about" -> AboutDetail()
         }
     }
@@ -249,16 +346,28 @@ fun PermissionsDetail(
 }
 
 @Composable
-fun ClickDetail() {
+fun ClickDetail(
+    clickMode: String, onClickMode: (String) -> Unit,
+    interval: Int, onInterval: (Int) -> Unit,
+    count: String, onCount: (String) -> Unit,
+    duration: Int, onDuration: (Int) -> Unit,
+    randomOffset: Boolean, onRandomOffset: (Boolean) -> Unit,
+    randomInterval: Boolean, onRandomInterval: (Boolean) -> Unit,
+    antiDetect: Boolean, onAntiDetect: (Boolean) -> Unit
+) {
     Spacer(Modifier.height(12.dp))
     DetailTitle("點擊")
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "基本") {
-        SettingsStatusRow("模式", "單點") {}
-        SettingsStatusRow("間隔", "200 ms") {}
-        SettingsStatusRow("次數", "無限") {}
-        SettingsStatusRow("持續時間", "50 ms") {}
+        CycleRow("模式", clickMode, listOf("單點", "多點", "滑動")) { onClickMode(it) }
+        CycleRow("間隔", "$interval ms", listOf(50, 100, 200, 300, 500, 1000).map { "$it ms" }) { v ->
+            onInterval(v.removeSuffix(" ms").toInt())
+        }
+        CycleRow("次數", count, listOf("無限", "10", "50", "100", "500")) { onCount(it) }
+        CycleRow("持續時間", "$duration ms", listOf(20, 50, 100, 200).map { "$it ms" }) { v ->
+            onDuration(v.removeSuffix(" ms").toInt())
+        }
     }
 
     Spacer(Modifier.height(8.dp))
@@ -273,13 +382,13 @@ fun ClickDetail() {
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
-        SettingsStatusRow("隨機偏移", "關閉") {}
-        SettingsStatusRow("隨機間隔", "關閉") {}
-        SettingsStatusRow("防偵測延遲", "關閉") {}
+        ToggleRow("隨機偏移", randomOffset) { onRandomOffset(it) }
+        ToggleRow("隨機間隔", randomInterval) { onRandomInterval(it) }
+        ToggleRow("防偵測延遲", antiDetect) { onAntiDetect(it) }
     }
 
     Spacer(Modifier.height(12.dp))
-    Caption("以上為佔位參數，後續將連接實際點擊引擎。")
+    Caption("點擊列可循環切換數值。以上為佔位狀態，後續將連接實際點擊引擎。")
 }
 
 @Composable
@@ -307,24 +416,33 @@ fun SequenceDetail() {
 }
 
 @Composable
-fun OverlayDetail(overlayOn: Boolean, onOpenOverlay: () -> Unit) {
+fun OverlayDetail(
+    overlayOn: Boolean, onOpenOverlay: () -> Unit,
+    floatButton: Boolean, onFloatButton: (Boolean) -> Unit,
+    showRemain: Boolean, onShowRemain: (Boolean) -> Unit,
+    draggable: Boolean, onDraggable: (Boolean) -> Unit,
+    opacity: Int, onOpacity: (Int) -> Unit,
+    floatSize: String, onFloatSize: (String) -> Unit
+) {
     Spacer(Modifier.height(12.dp))
     DetailTitle("懸浮窗")
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "顯示") {
         SettingsStatusRow("狀態", if (overlayOn) "權限已開" else "未授權", onOpenOverlay)
-        SettingsStatusRow("浮動按鈕", "關閉") {}
-        SettingsStatusRow("透明度", "90%") {}
-        SettingsStatusRow("大小", "中") {}
+        ToggleRow("浮動按鈕", floatButton) { onFloatButton(it) }
+        CycleRow("透明度", "$opacity%", listOf(60, 75, 90, 100).map { "$it%" }) { v ->
+            onOpacity(v.removeSuffix("%").toInt())
+        }
+        CycleRow("大小", floatSize, listOf("小", "中", "大")) { onFloatSize(it) }
     }
 
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "操作") {
-        SettingsStatusRow("顯示開始／停止", "開啟") {}
-        SettingsStatusRow("顯示剩餘次數", "開啟") {}
-        SettingsStatusRow("可拖曳", "開啟") {}
+        ToggleRow("顯示開始／停止", true) {}
+        ToggleRow("顯示剩餘次數", showRemain) { onShowRemain(it) }
+        ToggleRow("可拖曳", draggable) { onDraggable(it) }
     }
 
     Spacer(Modifier.height(12.dp))
@@ -495,12 +613,72 @@ fun SettingsStatusRow(
             modifier = Modifier.weight(1f)
         )
         if (value.isNotEmpty()) {
-            Text(
-                value,
-                style = TextStyle(fontSize = 16.sp, color = SettingsColors.secondary)
-            )
+            Text(value, style = TextStyle(fontSize = 16.sp, color = SettingsColors.secondary))
             Spacer(Modifier.width(6.dp))
         }
         Text("›", color = SettingsColors.arrow, fontSize = 18.sp)
+    }
+}
+
+@Composable
+fun CycleRow(
+    label: String,
+    current: String,
+    options: List<String>,
+    onChange: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                val idx = options.indexOf(current).let { if (it < 0) 0 else it }
+                onChange(options[(idx + 1) % options.size])
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = TextStyle(
+                fontSize = 16.sp,
+                fontWeight = FontWeight(560),
+                letterSpacing = (-0.01).em,
+                color = SettingsColors.text
+            ),
+            modifier = Modifier.weight(1f)
+        )
+        Text(current, style = TextStyle(fontSize = 16.sp, color = SettingsColors.secondary))
+        Spacer(Modifier.width(6.dp))
+        Text("›", color = SettingsColors.arrow, fontSize = 18.sp)
+    }
+}
+
+@Composable
+fun ToggleRow(
+    label: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = TextStyle(
+                fontSize = 16.sp,
+                fontWeight = FontWeight(560),
+                letterSpacing = (-0.01).em,
+                color = SettingsColors.text
+            ),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            if (checked) "開啟" else "關閉",
+            style = TextStyle(fontSize = 16.sp, color = SettingsColors.secondary)
+        )
     }
 }
