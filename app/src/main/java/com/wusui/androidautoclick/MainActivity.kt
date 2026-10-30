@@ -630,7 +630,10 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.4.0") {}
+        SettingsStatusRow("立即停止", "") {
+            ClickController.stop()
+            SequenceRecorder.stopReplay()
+        }
         SettingsStatusRow("授權", "MIT") {}
     }
 
