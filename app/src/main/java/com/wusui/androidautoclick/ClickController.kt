@@ -236,7 +236,7 @@ object ClickController {
                     if (slowStart && totalClicks < 5) delay *= 2
                     if (antiDetect) delay += kotlin.random.Random.nextLong(0, 80)
                     val minDelay = if (safeMode) 100L else if (maxCps > 0) 1000L / maxCps else 20L
-                    handler.postDelayed(this, delay.coerceAtLeast(minDelay))
+                    handler.postDelayed(this, delay.coerceAtLeast(minDelay).coerceAtMost(10000))
                 }
             }
         }
