@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var clearLogOnStart: Boolean = false
+    var maxMinutes: Int = 0 // 0 = 無限制
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -104,6 +104,10 @@ object ClickController {
                 if (!isRunning) return
                 if (isPaused) {
                     handler.postDelayed(this, 200)
+                    return
+                }
+                if (maxMinutes > 0 && elapsedSec() >= maxMinutes * 60L) {
+                    stop()
                     return
                 }
                 if (count >= 0 && remaining <= 0) {

@@ -440,6 +440,13 @@ fun ClickDetail(
             onInterval(v.removeSuffix(" ms").toInt())
         }
         CycleRow("次數", count, listOf("無限", "10", "50", "100", "500")) { onCount(it) }
+        CycleRow("最長時間", if (ClickController.maxMinutes == 0) "無限" else "${ClickController.maxMinutes} 分",
+            listOf("無限", "1 分", "5 分", "10 分", "30 分")) { v ->
+            ClickController.maxMinutes = when (v) {
+                "無限" -> 0
+                else -> v.removeSuffix(" 分").toIntOrNull() ?: 0
+            }
+        }
         CycleRow("開始延遲", "${ClickController.startDelayMs} ms", listOf(0, 500, 1000, 2000).map { "$it ms" }) { v ->
             ClickController.startDelayMs = v.removeSuffix(" ms").toLong()
         }
