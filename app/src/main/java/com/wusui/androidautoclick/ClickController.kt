@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var jitterInterval: Boolean = false // 間隔微抖
+    var onlyEven: Boolean = false // 只點偶數次
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -124,6 +124,10 @@ object ClickController {
                     return
                 }
 
+                if (onlyEven && totalClicks % 2 == 1) {
+                    if (isRunning) handler.postDelayed(this, intervalMs)
+                    return
+                }
                 if (skipEvery > 0 && totalClicks % skipEvery == 0) {
                     addLog("跳過")
                     if (isRunning) handler.postDelayed(this, intervalMs)
