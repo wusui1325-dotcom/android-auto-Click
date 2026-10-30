@@ -440,6 +440,10 @@ fun ClickDetail(
             onInterval(v.removeSuffix(" ms").toInt())
         }
         CycleRow("次數", count, listOf("無限", "10", "50", "100", "500")) { onCount(it) }
+        CycleRow("跳過每 N", if (ClickController.skipEvery == 0) "關閉" else ClickController.skipEvery.toString(),
+            listOf("關閉", "3", "5", "10")) { v ->
+            ClickController.skipEvery = if (v == "關閉") 0 else v.toInt()
+        }
         CycleRow("暖機次數", ClickController.warmupClicks.toString(), listOf(0, 3, 5, 10).map { it.toString() }) { v ->
             ClickController.warmupClicks = v.toInt()
         }

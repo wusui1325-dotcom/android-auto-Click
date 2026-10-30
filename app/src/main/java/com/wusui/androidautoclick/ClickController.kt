@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var decelerate: Boolean = false
+    var skipEvery: Int = 0 // 每 N 次跳過一次
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -124,6 +124,11 @@ object ClickController {
                     return
                 }
 
+                if (skipEvery > 0 && totalClicks % skipEvery == 0) {
+                    addLog("跳過")
+                    if (isRunning) handler.postDelayed(this, intervalMs)
+                    return
+                }
                 val usePoints = if (mode == "多點" && points.size > 1) points else listOf(points.first())
                 var (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
                 x = x * scale + offsetX
