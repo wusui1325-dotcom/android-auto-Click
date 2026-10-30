@@ -560,6 +560,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("擬人化", ClickController.humanize) {
+            ClickController.humanize = it
+        }
         ToggleRow("隨機偏移", randomOffset) { onRandomOffset(it) }
         ToggleRow("隨機間隔", randomInterval) { onRandomInterval(it) }
         ToggleRow("防偵測延遲", antiDetect) { onAntiDetect(it) }
