@@ -38,9 +38,9 @@ class FloatingOverlayService : Service() {
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val refreshRunnable = object : Runnable {
         override fun run() {
-            if (ClickController.isRunning) {
+            if (ClickController.isRunning || ClickController.isPaused) {
                 updateButtonText()
-                refreshHandler.postDelayed(this, 300)
+                refreshHandler.postDelayed(this, 400)
             }
         }
     }
@@ -77,7 +77,8 @@ class FloatingOverlayService : Service() {
             gravity = android.view.Gravity.CENTER
             text = if (ClickController.isRunning) "■" else "▶"
             setTextColor(Color.parseColor("#F5F5F7"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setLineSpacing(0f, 0.9f)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#1C1C1E"))

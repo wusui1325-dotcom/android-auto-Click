@@ -87,7 +87,7 @@ object ClickController {
     private var remaining: Int = 0
     private var pointIndex = 0
 
-    private var pingDir = 1
+    private var lastNotifyMs = 0L
 
     fun start(): Boolean {
         if (isRunning) return true
@@ -224,10 +224,15 @@ object ClickController {
                     }
                 }
                 updateRemaining()
-                if (notifyEvery > 0 && totalClicks % notifyEvery == 0) {
-                    appContext?.let { ClickNotification.showRunning(it, "已點 $totalClicks") }
-                } else if (notifyEvery == 0) {
-                    appContext?.let { ClickNotification.showRunning(it, "剩餘 ${remainingDisplay}") }
+                // 節流通知：最多每 500ms 更新一次
+                val now = System.currentTimeMillis()
+                if (now - lastNotifyMs > 500) {
+                    lastNotifyMs = now
+                    if (notifyEvery > 0 && totalClicks % notifyEvery == 0) {
+                        appContext?.let { ClickNotification.showRunning(it, "已點 $totalClicks") }
+                    } else if (notifyEvery == 0) {
+                        appContext?.let { ClickNotification.showRunning(it, "剩餘 ${remainingDisplay}") }
+                    }
                 }
 
                 if (isRunning) {

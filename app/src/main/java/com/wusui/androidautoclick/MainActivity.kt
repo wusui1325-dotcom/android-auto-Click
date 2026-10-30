@@ -52,6 +52,7 @@ private object SettingsColors {
     val secondary: Color get() = if (isDark) Color(0xFF8E8E93) else Color(0xFF6E6E73)
     val divider: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFD1D1D6)
     val selected: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA)
+    val rowActive: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA)
     val card: Color get() = if (isDark) Color(0xFF111111) else Color.White
     val cardBorder: Color get() = if (isDark) Color(0xFF1C1C1E) else Color(0xFFD1D1D6)
     val arrow: Color = Color(0xFF636366)
@@ -61,12 +62,18 @@ private object SettingsColors {
 
 @Composable
 fun SettingsTheme(content: @Composable () -> Unit) {
+    val dark = SettingsColors.isDark
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            background = SettingsColors.bg,
-            surface = SettingsColors.bg,
-            onBackground = SettingsColors.text,
-            onSurface = SettingsColors.text
+        colorScheme = if (dark) darkColorScheme(
+            background = Color(0xFF000000),
+            surface = Color(0xFF000000),
+            onBackground = Color(0xFFF5F5F7),
+            onSurface = Color(0xFFF5F5F7)
+        ) else androidx.compose.material3.lightColorScheme(
+            background = Color(0xFFF2F2F7),
+            surface = Color(0xFFF2F2F7),
+            onBackground = Color(0xFF1D1D1F),
+            onSurface = Color(0xFF1D1D1F)
         ),
         content = content
     )
@@ -1038,10 +1045,14 @@ fun SettingsStatusRow(
     value: String,
     onClick: () -> Unit
 ) {
+    var pressed by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .background(if (pressed) SettingsColors.rowActive else Color.Transparent)
+            .clickable {
+                onClick()
+            }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
