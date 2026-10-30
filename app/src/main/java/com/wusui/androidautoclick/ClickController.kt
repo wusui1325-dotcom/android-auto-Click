@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var skipEvery: Int = 0 // 每 N 次跳過一次
+    var doubleTap: Boolean = false // 每次點兩下
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -147,6 +147,7 @@ object ClickController {
                     y += (kotlin.random.Random.nextInt(-range, range + 1)).toFloat()
                 }
                 val ok = service.performClick(x, y, durationMs)
+                if (doubleTap) service.performClick(x, y, durationMs)
                 if (!ok && stopOnError) {
                     addLog("手勢失敗，停止")
                     stop()
