@@ -5,23 +5,31 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.app.ServiceCompat
-import com.wusui.androidautoclick.data.SettingsRepository
+import com.wusui.androidautoclick.data.AppStore
 import com.wusui.androidautoclick.engine.ClickEngine
+import com.wusui.androidautoclick.engine.NodeKind
+import com.wusui.androidautoclick.engine.SessionType
+import com.wusui.androidautoclick.engine.TouchNode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,48 +39,41 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
- * Floating control + draggable markers.
- *
- * Official contracts followed:
- * - TYPE_APPLICATION_OVERLAY (API 26+)
- * - FGS specialUse via ServiceCompat.startForeground + FOREGROUND_SERVICE_TYPE_SPECIAL_USE
- * - layoutInDisplayCutoutMode ALWAYS so overlay coords can match full screen pixels
- * - setFitInsetsTypes(0) so the window is not fitted away from system bars / cutout
- * - Marker screen position calibrated with getLocationOnScreen after first layout
+ * Floating control bar + ordered touch markers (alpha 0.75 hollow circles).
  */
 class OverlayService : Service() {
 
     companion object {
-        @Volatile
-        var isRunning = false
+        @Volatile var isRunning = false
             private set
         const val ACTION_SHOW = "show"
         const val ACTION_HIDE = "hide"
+        const val EXTRA_TYPE = "session_type"
+        private const val MARKER_ALPHA = 0.75f
     }
 
     private lateinit var windowManager: WindowManager
-    private var controlView: View? = null
-    private var controlParams: WindowManager.LayoutParams? = null
-    private var expanded = false
-    private val markers = mutableListOf<Pair<View, WindowManager.LayoutParams>>()
+    private var barView: View? = null
+    private var barParams: WindowManager.LayoutParams? = null
+    private var expanded = true
+    private val markers = mutableMapOf<String, Pair<View, WindowManager.LayoutParams>>()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val persistHandler = Handler(Looper.getMainLooper())
     private var layoutToScreenOffsetY = 0
     private var offsetCalibrated = false
-    private var lastGlyph = ""
+    private var draggingMarker = false
+    private var markersDirty = true
+    private var popupView: View? = null
     private var scope: CoroutineScope? = null
     private var observeJob: Job? = null
-    private var markersDirty = true
-    private var draggingMarker = false
 
-    private val refreshRunnable = object : Runnable {
+    private val pulse = object : Runnable {
         override fun run() {
-            updateCollapsedGlyph()
+            updatePlayGlyph()
             if (markersDirty && !draggingMarker) {
                 markersDirty = false
                 refreshMarkers()
             }
-            mainHandler.postDelayed(this, 800)
+            mainHandler.postDelayed(this, 400)
         }
     }
 
@@ -83,64 +84,68 @@ class OverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         isRunning = true
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-        startAsForeground()
-        observeRepo()
-    }
-
-    private fun observeRepo() {
-        observeJob?.cancel()
+        startFg()
         observeJob = scope?.launch {
             launch {
-                combine(
-                    SettingsRepository.points,
-                    SettingsRepository.config
-                ) { pts, cfg -> pts.size to (cfg.showMarkers to cfg.lockMarkersWhileRunning) }
-                    .collect { markersDirty = true }
-            }
-            launch {
-                ClickEngine.status.collect {
-                    updateCollapsedGlyph()
-                    markersDirty = true // lock/unlock markers while active
-                }
+                combine(AppStore.nodes, AppStore.deleteMode, ClickEngine.status) { _, _, _ -> }
+                    .collect { markersDirty = true; rebuildBarIfNeeded() }
             }
         }
     }
 
-    private fun startAsForeground() {
-        val notification = ClickNotification.buildOverlayKeepAlive(this)
+    private fun startFg() {
         ServiceCompat.startForeground(
             this,
             ClickNotification.OVERLAY_NOTIFY_ID,
-            notification,
+            ClickNotification.buildOverlayKeepAlive(this, "AUTO-C 控制列"),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_HIDE -> {
-                removeAll()
-                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
+            ACTION_HIDE -> closeAll()
             else -> {
-                startAsForeground()
-                showControl()
+                startFg()
+                val typeName = intent?.getStringExtra(EXTRA_TYPE)
+                if (typeName != null && !AppStore.sessionOpen.value) {
+                    val type = try { SessionType.valueOf(typeName) } catch (_: Exception) { SessionType.SINGLE }
+                    AppStore.beginSession(type)
+                }
+                if (!AppStore.sessionOpen.value) {
+                    AppStore.beginSession(SessionType.SINGLE)
+                }
+                showBar()
+                markersDirty = true
+                mainHandler.removeCallbacks(pulse)
+                mainHandler.post(pulse)
             }
         }
         return START_STICKY
     }
 
-    private fun baseOverlayParams(width: Int, height: Int): WindowManager.LayoutParams {
-        return WindowManager.LayoutParams(
-            width,
-            height,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+    private fun closeAll() {
+        ClickEngine.stop()
+        ClickEngine.stopRecording()
+        AppStore.endSession()
+        dismissPopup()
+        removeBar()
+        clearMarkers()
+        mainHandler.removeCallbacksAndMessages(null)
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    private fun baseLp(w: Int, h: Int, focusable: Boolean = false): WindowManager.LayoutParams {
+        val flags = if (focusable) {
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        } else {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        }
+        return WindowManager.LayoutParams(w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags, PixelFormat.TRANSLUCENT).apply {
             gravity = Gravity.TOP or Gravity.START
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
@@ -154,345 +159,184 @@ class OverlayService : Service() {
         }
     }
 
-    private fun screenToLayoutX(screenX: Float, size: Int): Int = (screenX - size / 2f).toInt()
-    private fun screenToLayoutY(screenY: Float, size: Int): Int =
-        (screenY - size / 2f - layoutToScreenOffsetY).toInt()
-    private fun layoutToScreenX(layoutX: Int, size: Int): Float = layoutX + size / 2f
-    private fun layoutToScreenY(layoutY: Int, size: Int): Float =
-        layoutY + size / 2f + layoutToScreenOffsetY
-
-    private fun calibrateOffsetIfNeeded(view: View, params: WindowManager.LayoutParams) {
-        if (offsetCalibrated) return
-        view.post {
-            try {
-                val loc = IntArray(2)
-                view.getLocationOnScreen(loc)
-                layoutToScreenOffsetY = loc[1] - params.y
-                offsetCalibrated = true
-                markersDirty = true
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    fun screenSize(): Pair<Int, Int> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val bounds = windowManager.currentWindowMetrics.bounds
-            bounds.width() to bounds.height()
+    private fun screenSize(): Pair<Int, Int> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val b = windowManager.currentWindowMetrics.bounds
+            b.width() to b.height()
         } else {
             @Suppress("DEPRECATION")
-            val d = resources.displayMetrics
-            d.widthPixels to d.heightPixels
+            resources.displayMetrics.widthPixels to resources.displayMetrics.heightPixels
         }
-    }
 
-    private fun showControl() {
-        if (controlView != null) {
-            markersDirty = true
-            return
-        }
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    // ── Control bar ────────────────────────────────────────────
+
+    private fun showBar() {
         if (!android.provider.Settings.canDrawOverlays(this)) {
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return
+            closeAll(); return
         }
-        rebuildControl()
-        markersDirty = true
-        mainHandler.removeCallbacks(refreshRunnable)
-        mainHandler.post(refreshRunnable)
+        rebuildBar()
     }
 
-    private fun rebuildControl() {
-        controlView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
-        val container = if (expanded) buildExpanded() else buildCollapsed()
-        val params = baseOverlayParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT
-        ).apply {
-            x = controlParams?.x ?: dp(16)
-            y = controlParams?.y ?: dp(120)
-        }
-        setupDragOrTap(container, params, onTap = {
-            if (expanded) {
-                // taps handled by child buttons
-            } else {
-                toggleClicking()
-            }
-        }, onLongPress = {
-            if (!expanded) {
-                expanded = true
-                rebuildControl()
-            }
-        })
-        try {
-            windowManager.addView(container, params)
-            controlView = container
-            controlParams = params
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun buildCollapsed(): View {
-        val size = dp(56)
-        lastGlyph = glyph()
-        val btn = TextView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(size, size)
-            gravity = Gravity.CENTER
-            text = lastGlyph
-            setTextColor(Color.parseColor("#F5F5F7"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            background = ovalBg()
-            tag = "glyph"
-            // Clicks go through parent drag/tap handler → performClick path.
-            isClickable = false
-            isFocusable = false
-        }
-        return FrameLayout(this).apply { addView(btn) }
-    }
-
-    private fun glyph(): String {
+    private var lastBarKey = ""
+    private fun rebuildBarIfNeeded() {
         val st = ClickEngine.status.value
-        return if (st.running || st.replaying) "■" else "▶"
+        val key = "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}"
+        if (key != lastBarKey) rebuildBar()
     }
 
-    private fun updateCollapsedGlyph() {
-        if (expanded) return
-        val root = controlView as? FrameLayout ?: return
-        val tv = root.findViewWithTag<TextView>("glyph") ?: return
-        val next = glyph()
-        if (tv.text.toString() != next) {
-            lastGlyph = next
-            tv.text = next
-        }
-    }
+    private fun rebuildBar() {
+        val st = ClickEngine.status.value
+        lastBarKey = "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}"
+        val oldX = barParams?.x ?: dp(12)
+        val oldY = barParams?.y ?: dp(140)
+        barView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
 
-    private fun buildExpanded(): View {
-        val col = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), dp(10), dp(10), dp(10))
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(6), dp(6), dp(6), dp(6))
             background = GradientDrawable().apply {
-                cornerRadius = dp(14).toFloat()
-                setColor(Color.parseColor("#111111"))
-                setStroke(dp(1), Color.parseColor("#1C1C1E"))
+                cornerRadius = dp(16).toFloat()
+                setColor(Color.parseColor("#F2F2F7"))
+                setStroke(dp(1), Color.parseColor("#D1D1D6"))
             }
-            minimumWidth = dp(148)
+            alpha = 0.96f
         }
-        fun addBtn(label: String, muted: Boolean = false, action: () -> Unit) {
+
+        fun iconBtn(symbol: String, label: String, danger: Boolean = false, onClick: () -> Unit) {
+            val col = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setOnClickListener { onClick() }
+            }
+            col.addView(TextView(this).apply {
+                text = symbol
+                gravity = Gravity.CENTER
+                setTextColor(if (danger) Color.parseColor("#C4A090") else Color.parseColor("#1D1D1F"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                typeface = Typeface.DEFAULT_BOLD
+            })
             col.addView(TextView(this).apply {
                 text = label
-                setTextColor(Color.parseColor(if (muted) "#8E8E93" else "#F5F5F7"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, if (muted) 13f else 15f)
-                setPadding(dp(12), dp(if (muted) 6 else 10), dp(12), dp(if (muted) 6 else 10))
-                setOnClickListener { action() }
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor("#6E6E73"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
             })
+            row.addView(col)
         }
-        val st = ClickEngine.status.value
-        val cfg = SettingsRepository.config.value
-        val compact = cfg.compactOverlay
 
-        addBtn(if (st.active) "停止" else "開始") {
+        val type = AppStore.sessionType.value
+        // Start/Stop always
+        iconBtn(if (st.running) "■" else "▶", if (st.running) "停止" else "開始") {
             ClickEngine.toggle(fromOverlay = true)
-            rebuildControl()
+            rebuildBar()
         }
 
-        // Quick sequence switch (top N saved)
-        val saved = SettingsRepository.savedSequences.value.keys.sorted()
-        if (saved.isNotEmpty()) {
-            addBtn("— 序列快捷 —", muted = true) {}
-            val limit = if (compact) 4 else 8
-            saved.take(limit).forEach { name ->
-                val mark = if (name == cfg.activeSequenceName) "● " else "○ "
-                addBtn("$mark$name") {
-                    if (SettingsRepository.switchToSavedSequence(name)) {
-                        ClickEngine.clearError()
-                        rebuildControl()
+        if (expanded) {
+            when (type) {
+                SessionType.MULTI -> {
+                    iconBtn("＋", "加點") {
+                        val (w, h) = screenSize()
+                        AppStore.addClickPoint(w / 2f, h / 2f)
+                        markersDirty = true
+                    }
+                    iconBtn("⇄", "拖拽") {
+                        val (w, h) = screenSize()
+                        AppStore.addDragGroup(w * 0.35f, h / 2f, w * 0.65f, h / 2f)
+                        markersDirty = true
+                    }
+                    iconBtn(
+                        if (AppStore.deleteMode.value) "⌫!" else "⌫",
+                        if (AppStore.deleteMode.value) "選刪" else "刪除",
+                        danger = AppStore.deleteMode.value
+                    ) {
+                        AppStore.setDeleteMode(!AppStore.deleteMode.value)
+                        toast(if (AppStore.deleteMode.value) "點一個觸控點／拖拽組以刪除" else "已取消刪除")
+                        rebuildBar()
                     }
                 }
+                SessionType.RECORD -> {
+                    iconBtn(if (st.recording) "⏺" else "●", if (st.recording) "停錄" else "錄製") {
+                        ClickEngine.toggleRecording()
+                        rebuildBar()
+                        markersDirty = true
+                    }
+                    iconBtn("＋", "加點") {
+                        val (w, h) = screenSize()
+                        AppStore.addClickPoint(w / 2f, h / 2f)
+                        markersDirty = true
+                    }
+                }
+                SessionType.SINGLE -> { /* no add/delete/record */ }
             }
-        }
-
-        if (!compact) {
-            addBtn("新增點") {
-                val (w, h) = screenSize()
-                SettingsRepository.addPoint(w / 2f, h / 2f)
-                markersDirty = true
-            }
-            addBtn("刪除最後") {
-                SettingsRepository.removeLastPoint()
-                markersDirty = true
-            }
-            addBtn("標記→序列步") {
-                ClickEngine.importPointsAsSequence(300)
+            iconBtn("💾", "保存") { showSaveScheme() }
+            iconBtn("📂", "方案") { showUseScheme() }
+            iconBtn("⚙", "參數") { showParamsPopup() }
+            iconBtn("▴", "收起") {
+                expanded = false
+                rebuildBar()
             }
         } else {
-            addBtn("＋點") {
-                val (w, h) = screenSize()
-                SettingsRepository.addPoint(w / 2f, h / 2f)
-                markersDirty = true
+            iconBtn("▾", "展開") {
+                expanded = true
+                rebuildBar()
             }
         }
 
-        val show = cfg.showMarkers
-        addBtn(if (show) "隱藏標記" else "顯示標記") {
-            SettingsRepository.updateConfig { it.copy(showMarkers = !it.showMarkers) }
-            markersDirty = true
-            rebuildControl()
-        }
-        addBtn("收起") {
-            expanded = false
-            rebuildControl()
-        }
-        return col
-    }
+        iconBtn("✕", "關閉", danger = true) { closeAll() }
 
-    private fun refreshMarkers() {
-        markers.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
-        markers.clear()
-        val cfg = SettingsRepository.config.value
-        if (!cfg.showMarkers) return
-        val active = ClickEngine.status.value.active
-        if (active && cfg.lockMarkersWhileRunning) {
-            // Show dim locked markers (not touchable) so user still sees targets
-            SettingsRepository.points.value.forEachIndexed { i, p ->
-                addMarker(p.x, p.y, "${i + 1}", i, locked = true)
+        val host: View = if (expanded) {
+            HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(row)
             }
-            return
-        }
-        SettingsRepository.points.value.forEachIndexed { i, p ->
-            addMarker(p.x, p.y, "${i + 1}", i, locked = false)
-        }
-    }
+        } else row
 
-    private fun schedulePersist() {
-        persistHandler.removeCallbacksAndMessages(null)
-        persistHandler.postDelayed({
-            SettingsRepository.persistPointsNow()
-        }, 280)
-    }
-
-    private fun addMarker(x: Float, y: Float, label: String, index: Int, locked: Boolean = false) {
-        val size = dp(36)
-        val tv = TextView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(size, size)
-            gravity = Gravity.CENTER
-            text = label
-            setTextColor(Color.parseColor("#F5F5F7"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#3A3A3C"))
-                setStroke(dp(1), Color.parseColor("#8E8E93"))
-            }
+        val lp = baseLp(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT).apply {
+            x = oldX; y = oldY
         }
-        val params = baseOverlayParams(size, size).apply {
-            this.x = screenToLayoutX(x, size)
-            this.y = screenToLayoutY(y, size)
-            if (locked) {
-                flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-            }
-        }
-        if (locked) {
-            tv.alpha = 0.45f
-            try {
-                windowManager.addView(tv, params)
-                markers.add(tv to params)
-            } catch (_: Exception) {
-            }
-            return
-        }
-        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f
-        tv.setOnTouchListener { _, e ->
-            when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    draggingMarker = true
-                    ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    params.x = ix + (e.rawX - tx).toInt()
-                    params.y = iy + (e.rawY - ty).toInt()
-                    try { windowManager.updateViewLayout(tv, params) } catch (_: Exception) {}
-                    // Always persist marker CENTER, not finger raw position.
-                    val cx = layoutToScreenX(params.x, size)
-                    val cy = layoutToScreenY(params.y, size)
-                    SettingsRepository.updatePoint(index, cx, cy, persist = false)
-                    schedulePersist()
-                    true
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    val cx = layoutToScreenX(params.x, size)
-                    val cy = layoutToScreenY(params.y, size)
-                    SettingsRepository.updatePoint(index, cx, cy, persist = true)
-                    draggingMarker = false
-                    true
-                }
-                else -> false
-            }
-        }
+        setupBarDrag(host, lp)
         try {
-            windowManager.addView(tv, params)
-            markers.add(tv to params)
-            calibrateOffsetIfNeeded(tv, params)
+            windowManager.addView(host, lp)
+            barView = host
+            barParams = lp
         } catch (_: Exception) {
         }
     }
 
-    /**
-     * Drag without swallowing taps / long-press.
-     * Bugfix: previous OnTouchListener returned true on DOWN and never called
-     * performClick, so short-press start/stop and long-press expand were dead.
-     */
-    private fun setupDragOrTap(
-        view: View,
-        params: WindowManager.LayoutParams,
-        onTap: () -> Unit,
-        onLongPress: () -> Unit
-    ) {
-        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-        val longTimeout = ViewConfiguration.getLongPressTimeout().toLong()
-        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f
-        var moved = false
-        var longFired = false
-        val longRunnable = Runnable {
-            if (!moved) {
-                longFired = true
-                onLongPress()
-            }
-        }
+    private fun updatePlayGlyph() {
+        // Force bar rebuild when running state flips while collapsed/expanded
+        rebuildBarIfNeeded()
+    }
+
+    private fun removeBar() {
+        barView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
+        barView = null
+    }
+
+    private fun setupBarDrag(view: View, params: WindowManager.LayoutParams) {
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f; var moved = false
         view.setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY
-                    moved = false; longFired = false
-                    mainHandler.postDelayed(longRunnable, longTimeout)
-                    true
+                    ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; moved = false; true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (e.rawX - tx).toInt()
                     val dy = (e.rawY - ty).toInt()
-                    if (kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop) {
-                        if (!moved) {
-                            moved = true
-                            mainHandler.removeCallbacks(longRunnable)
-                        }
-                        params.x = ix + dx
-                        params.y = iy + dy
+                    if (kotlin.math.abs(dx) > slop || kotlin.math.abs(dy) > slop) {
+                        moved = true
+                        params.x = ix + dx; params.y = iy + dy
                         try { windowManager.updateViewLayout(v, params) } catch (_: Exception) {}
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    mainHandler.removeCallbacks(longRunnable)
-                    if (!moved && !longFired) {
-                        // Prefer child click if hit a clickable child (expanded menu).
-                        if (!dispatchClickToChild(v, e.rawX, e.rawY)) {
-                            onTap()
-                            if (!expanded) rebuildControl()
-                        }
-                    }
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    mainHandler.removeCallbacks(longRunnable)
+                    if (!moved) dispatchChildClick(v, e.rawX, e.rawY)
                     true
                 }
                 else -> false
@@ -500,56 +344,360 @@ class OverlayService : Service() {
         }
     }
 
-    private fun dispatchClickToChild(root: View, rawX: Float, rawY: Float): Boolean {
+    private fun dispatchChildClick(root: View, rawX: Float, rawY: Float): Boolean {
         if (root !is android.view.ViewGroup) return false
         val loc = IntArray(2)
         for (i in 0 until root.childCount) {
-            val child = root.getChildAt(i)
-            if (!child.isShown) continue
-            child.getLocationOnScreen(loc)
-            val l = loc[0]; val t = loc[1]
-            val r = l + child.width; val b = t + child.height
-            if (rawX >= l && rawX < r && rawY >= t && rawY < b) {
-                if (child.hasOnClickListeners()) {
-                    child.performClick()
-                    return true
+            val c = root.getChildAt(i)
+            if (!c.isShown) continue
+            c.getLocationOnScreen(loc)
+            if (rawX >= loc[0] && rawX < loc[0] + c.width && rawY >= loc[1] && rawY < loc[1] + c.height) {
+                if (c.hasOnClickListeners()) {
+                    c.performClick(); return true
                 }
-                if (child is android.view.ViewGroup && dispatchClickToChild(child, rawX, rawY)) {
-                    return true
-                }
+                if (c is android.view.ViewGroup && dispatchChildClick(c, rawX, rawY)) return true
             }
         }
         return false
     }
 
-    private fun toggleClicking() {
-        ClickEngine.toggle(fromOverlay = true)
-        if (!expanded) rebuildControl()
+    // ── Markers ────────────────────────────────────────────────
+
+    private fun clearMarkers() {
+        markers.values.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
+        markers.clear()
     }
 
-    private fun removeAll() {
-        mainHandler.removeCallbacks(refreshRunnable)
-        mainHandler.removeCallbacksAndMessages(null)
-        persistHandler.removeCallbacksAndMessages(null)
-        markers.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
-        markers.clear()
-        controlView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
-        controlView = null
+    private fun refreshMarkers() {
+        clearMarkers()
+        AppStore.orderedNodes().forEach { node ->
+            addMarker(node)
+        }
+    }
+
+    private fun addMarker(node: TouchNode) {
+        val size = dp(44)
+        val locked = ClickEngine.status.value.running && !AppStore.deleteMode.value
+        val tv = TextView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(size, size)
+            gravity = Gravity.CENTER
+            text = when (node.kind) {
+                NodeKind.DRAG_START -> "↗${node.order}"
+                NodeKind.DRAG_END -> "↙${node.order}"
+                else -> "${node.order}"
+            }
+            setTextColor(Color.parseColor("#FF3B30")) // red number
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            typeface = Typeface.DEFAULT_BOLD
+            // Hollow white circle, black border, overall 75% opacity
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#00FFFFFF")) // transparent fill
+                setStroke(dp(2), Color.BLACK)
+            }
+            // Outer white ring via second stroke illusion: white under black
+            // Use layered: white thicker stroke behind — approximate with white stroke + black inset via padding ring
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.TRANSPARENT)
+                setStroke(dp(3), Color.WHITE)
+            }
+            // Add black inner ring using foreground if API allows — use compound: wrap
+            alpha = MARKER_ALPHA
+        }
+        // Wrap to get white outer + black inner ring
+        val wrap = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(size, size)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.TRANSPARENT)
+                setStroke(dp(3), Color.WHITE)
+            }
+            alpha = MARKER_ALPHA
+            addView(TextView(this@OverlayService).apply {
+                layoutParams = FrameLayout.LayoutParams(size - dp(6), size - dp(6)).apply {
+                    gravity = Gravity.CENTER
+                }
+                gravity = Gravity.CENTER
+                text = when (node.kind) {
+                    NodeKind.DRAG_START -> "↗${node.order}"
+                    NodeKind.DRAG_END -> "↙${node.order}"
+                    else -> "${node.order}"
+                }
+                setTextColor(Color.parseColor("#FF3B30"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                typeface = Typeface.DEFAULT_BOLD
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.TRANSPARENT)
+                    setStroke(dp(2), Color.BLACK)
+                }
+            })
+        }
+
+        val params = baseLp(size, size).apply {
+            x = (node.x - size / 2f).toInt()
+            y = (node.y - size / 2f - layoutToScreenOffsetY).toInt()
+            if (locked) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+
+        if (!locked) {
+            var ix = 0; var iy = 0; var tx = 0f; var ty = 0f; var moved = false
+            wrap.setOnTouchListener { _, e ->
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        draggingMarker = true
+                        ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; moved = false; true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (e.rawX - tx).toInt()
+                        val dy = (e.rawY - ty).toInt()
+                        if (kotlin.math.abs(dx) > 4 || kotlin.math.abs(dy) > 4) moved = true
+                        params.x = ix + dx; params.y = iy + dy
+                        try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
+                        val cx = params.x + size / 2f
+                        val cy = params.y + size / 2f + layoutToScreenOffsetY
+                        AppStore.moveNode(node.id, cx, cy)
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        draggingMarker = false
+                        val cx = params.x + size / 2f
+                        val cy = params.y + size / 2f + layoutToScreenOffsetY
+                        AppStore.moveNode(node.id, cx, cy)
+                        if (!moved) {
+                            if (AppStore.deleteMode.value) {
+                                AppStore.removeNodeOrGroup(node.id)
+                                markersDirty = true
+                                rebuildBar()
+                            } else {
+                                showNodePopup(node)
+                            }
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+
+        try {
+            windowManager.addView(wrap, params)
+            markers[node.id] = wrap to params
+            if (!offsetCalibrated) {
+                wrap.post {
+                    try {
+                        val loc = IntArray(2)
+                        wrap.getLocationOnScreen(loc)
+                        layoutToScreenOffsetY = loc[1] - params.y
+                        offsetCalibrated = true
+                        markersDirty = true
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    // ── Popups (Settings-style overlays) ────────────────────────
+
+    private fun dismissPopup() {
+        popupView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
+        popupView = null
+    }
+
+    private fun showPanel(title: String, build: LinearLayout.() -> Unit) {
+        dismissPopup()
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(Color.parseColor("#F2F2F7"))
+                setStroke(dp(1), Color.parseColor("#D1D1D6"))
+            }
+        }
+        card.addView(TextView(this).apply {
+            text = title
+            setTextColor(Color.parseColor("#1D1D1F"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, 0, 0, dp(10))
+        })
+        card.build()
+        card.addView(TextView(this).apply {
+            text = "關閉"
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#6E6E73"))
+            setPadding(0, dp(14), 0, 0)
+            setOnClickListener { dismissPopup() }
+        })
+        val (sw, sh) = screenSize()
+        val lp = baseLp((sw * 0.82f).toInt(), WindowManager.LayoutParams.WRAP_CONTENT, focusable = true).apply {
+            x = ((sw * 0.09f).toInt())
+            y = (sh * 0.22f).toInt()
+        }
+        try {
+            windowManager.addView(card, lp)
+            popupView = card
+        } catch (e: Exception) {
+            // Fallback: system dialog (needs activity token — may fail; toast)
+            toast("無法顯示浮窗：$title")
+        }
+    }
+
+    private fun fieldRow(label: String, value: String, inputType: Int = InputType.TYPE_CLASS_NUMBER): Pair<LinearLayout, EditText> {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+        }
+        row.addView(TextView(this).apply {
+            text = label
+            setTextColor(Color.parseColor("#1D1D1F"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        val et = EditText(this).apply {
+            setText(value)
+            this.inputType = inputType
+            setTextColor(Color.parseColor("#1D1D1F"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setBackgroundColor(Color.parseColor("#E5E5EA"))
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            minWidth = dp(88)
+        }
+        row.addView(et)
+        return row to et
+    }
+
+    private fun showNodePopup(node: TouchNode) {
+        val live = AppStore.nodes.value.find { it.id == node.id } ?: node
+        showPanel("觸控點 ${live.order}") {
+            val (r1, etInterval) = fieldRow("與下一序間隔(ms)", live.intervalToNextMs.toString())
+            addView(r1)
+            val (r2, etClicks) = fieldRow("單次點擊次數", live.clickCount.toString())
+            if (live.kind == NodeKind.CLICK) addView(r2)
+            addView(TextView(this@OverlayService).apply {
+                text = "套用"
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor("#1D1D1F"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                typeface = Typeface.DEFAULT_BOLD
+                setPadding(0, dp(12), 0, 0)
+                setOnClickListener {
+                    val interval = etInterval.text.toString().toLongOrNull()?.coerceAtLeast(0) ?: live.intervalToNextMs
+                    val clicks = etClicks.text.toString().toIntOrNull()?.coerceAtLeast(1) ?: live.clickCount
+                    AppStore.updateNode(live.id) {
+                        it.copy(intervalToNextMs = interval, clickCount = clicks)
+                    }
+                    dismissPopup()
+                    toast("已更新點 ${live.order}")
+                }
+            })
+        }
+    }
+
+    private fun showParamsPopup() {
+        val p = AppStore.params.value
+        showPanel("參數調整") {
+            val (r1, etCycles) = fieldRow("循環次數(空=無限)", if (p.cycleCount < 0) "" else p.cycleCount.toString())
+            addView(r1)
+            val (r2, etStop) = fieldRow("多久後停止(ms,0=無)", p.stopAfterMs.toString())
+            addView(r2)
+            var jitter = p.jitter
+            val jitterTv = TextView(this@OverlayService).apply {
+                text = if (jitter) "點擊抖動：開（防偵測）" else "點擊抖動：關"
+                setTextColor(Color.parseColor("#1D1D1F"))
+                setPadding(0, dp(10), 0, dp(10))
+                setOnClickListener {
+                    jitter = !jitter
+                    text = if (jitter) "點擊抖動：開（防偵測）" else "點擊抖動：關"
+                }
+            }
+            addView(jitterTv)
+            addView(TextView(this@OverlayService).apply {
+                text = "套用"
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor("#1D1D1F"))
+                typeface = Typeface.DEFAULT_BOLD
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                setPadding(0, dp(8), 0, 0)
+                setOnClickListener {
+                    val cycles = etCycles.text.toString().let { if (it.isBlank()) -1 else it.toIntOrNull() ?: p.cycleCount }
+                    val stop = etStop.text.toString().toLongOrNull()?.coerceAtLeast(0) ?: p.stopAfterMs
+                    AppStore.setParams(p.copy(cycleCount = cycles, stopAfterMs = stop, jitter = jitter))
+                    dismissPopup()
+                    toast("參數已套用")
+                }
+            })
+        }
+    }
+
+    private fun showSaveScheme() {
+        showPanel("保存方案") {
+            val et = EditText(this@OverlayService).apply {
+                hint = "方案名稱"
+                setText(AppStore.sessionType.value.label())
+                setTextColor(Color.parseColor("#1D1D1F"))
+                setHintTextColor(Color.parseColor("#8E8E93"))
+                setBackgroundColor(Color.parseColor("#E5E5EA"))
+                setPadding(dp(10), dp(8), dp(10), dp(8))
+            }
+            addView(et)
+            addView(TextView(this@OverlayService).apply {
+                text = "保存"
+                gravity = Gravity.CENTER
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.parseColor("#1D1D1F"))
+                setPadding(0, dp(12), 0, 0)
+                setOnClickListener {
+                    val name = et.text.toString().trim()
+                    if (AppStore.saveScheme(name)) {
+                        dismissPopup(); toast("已保存「$name」")
+                    } else toast("保存失敗（需有觸控點且名稱非空）")
+                }
+            })
+        }
+    }
+
+    private fun showUseScheme() {
+        val names = AppStore.schemes.value.keys.sorted()
+        if (names.isEmpty()) {
+            toast("尚無已存方案"); return
+        }
+        showPanel("使用方案") {
+            names.forEach { name ->
+                val s = AppStore.schemes.value[name]!!
+                addView(TextView(this@OverlayService).apply {
+                    text = "$name  ·  ${s.type.label()} · ${s.nodes.size} 點"
+                    setTextColor(Color.parseColor("#1D1D1F"))
+                    setPadding(0, dp(10), 0, dp(10))
+                    setOnClickListener {
+                        AppStore.useScheme(name)
+                        dismissPopup()
+                        markersDirty = true
+                        rebuildBar()
+                        toast("已載入「$name」")
+                    }
+                })
+            }
+        }
+    }
+
+    private fun toast(msg: String) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
 
     override fun onDestroy() {
         observeJob?.cancel()
         scope?.cancel()
-        removeAll()
+        dismissPopup()
+        removeBar()
+        clearMarkers()
+        mainHandler.removeCallbacksAndMessages(null)
         isRunning = false
         super.onDestroy()
     }
-
-    private fun ovalBg() = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(Color.parseColor("#1C1C1E"))
-        setStroke(dp(1), Color.parseColor("#2C2C2E"))
-    }
-
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 }

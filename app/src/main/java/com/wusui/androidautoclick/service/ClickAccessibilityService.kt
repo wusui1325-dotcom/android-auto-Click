@@ -23,8 +23,8 @@ class ClickAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         if (instance === this) {
             instance = null
-            // Safety: stop engine if a11y dies mid-run
             ClickEngine.stop()
+            ClickEngine.stopRecording()
         }
         return super.onUnbind(intent)
     }
@@ -33,6 +33,7 @@ class ClickAccessibilityService : AccessibilityService() {
         if (instance === this) {
             instance = null
             ClickEngine.stop()
+            ClickEngine.stopRecording()
         }
         super.onDestroy()
     }
@@ -49,7 +50,7 @@ class ClickAccessibilityService : AccessibilityService() {
             val rect = android.graphics.Rect()
             node.getBoundsInScreen(rect)
             if (rect.isEmpty) return
-            ClickEngine.recordClick(rect.centerX().toFloat(), rect.centerY().toFloat())
+            ClickEngine.onAccessibilityClick(rect.centerX().toFloat(), rect.centerY().toFloat())
         } finally {
             // AccessibilityNodeInfo.recycle() deprecated/no-op on modern APIs — do not call.
         }
