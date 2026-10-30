@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private object SettingsColors {
-    const val isDark = true
+    var isDark = true
 
     val bg: Color get() = if (isDark) Color(0xFF000000) else Color(0xFFF2F2F7)
     val text: Color get() = if (isDark) Color(0xFFF5F5F7) else Color(0xFF1D1D1F)
@@ -96,6 +96,7 @@ fun AppShell() {
     var draggable by remember { mutableStateOf(true) }
     var opacity by remember { mutableStateOf(90) }
     var floatSize by remember { mutableStateOf("中") }
+    var themeDark by remember { mutableStateOf(SettingsColors.isDark) }
 
     // 初始化控制器預設值
     LaunchedEffect(Unit) {
@@ -724,6 +725,10 @@ fun AboutDetail() {
         SettingsStatusRow("重設預設", "") {
             ClickController.resetDefaults()
             SettingsStore.save()
+        }
+        SettingsStatusRow("切換主題", if (themeDark) "深色" else "淺色") {
+            themeDark = !themeDark
+            SettingsColors.isDark = themeDark
         }
         SettingsStatusRow("授權", "MIT") {}
     }
