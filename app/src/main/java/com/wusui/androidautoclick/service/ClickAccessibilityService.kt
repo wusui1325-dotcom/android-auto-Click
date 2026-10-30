@@ -65,6 +65,7 @@ class ClickAccessibilityService : AccessibilityService() {
     }
 
     fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 300): Boolean {
+        if (durationMs < 1) return false
         val path = Path().apply {
             moveTo(x1, y1)
             lineTo(x2, y2)
