@@ -193,7 +193,7 @@ object ClickController {
                 }
 
                 val dur = if (longPress) durationMs * 4 else durationMs
-                val ok = service.performClick(x, y, dur)
+                val ok = service.performClick(x, y, dur.coerceAtLeast(10))
                 if (doubleTap) service.performClick(x, y, dur)
                 if (!ok && stopOnError) { lastError = "手勢失敗"; addLog("手勢失敗，停止"); stop(); return }
                 totalClicks++
