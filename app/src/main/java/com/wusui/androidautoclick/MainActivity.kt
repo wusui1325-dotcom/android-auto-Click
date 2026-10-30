@@ -56,7 +56,6 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = color
         window.navigationBarColor = color
     }
-    }
 }
 
 internal object SettingsColors {
