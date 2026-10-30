@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var stopAtTotal: Int = 0 // 總點擊達 N 就停
+    var pauseEvery: Int = 0 // 每 N 次暫停一下
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -115,6 +115,15 @@ object ClickController {
                 if (!isRunning) return
                 if (isPaused) {
                     handler.postDelayed(this, 200)
+                    return
+                }
+                if (pauseEvery > 0 && totalClicks % pauseEvery == 0 && totalClicks > 0) {
+                    isPaused = true
+                    addLog("自動暫停")
+                    handler.postDelayed({
+                        isPaused = false
+                        if (isRunning) handler.post(this)
+                    }, 500)
                     return
                 }
                 if (stopAtTotal > 0 && totalClicks >= stopAtTotal) {

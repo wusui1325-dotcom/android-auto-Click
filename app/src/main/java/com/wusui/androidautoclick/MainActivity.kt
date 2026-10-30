@@ -450,6 +450,10 @@ fun ClickDetail(
         CycleRow("爆發次數", ClickController.burstCount.toString(), listOf(1, 2, 3, 5).map { it.toString() }) { v ->
             ClickController.burstCount = v.toInt()
         }
+        CycleRow("每 N 暫停", if (ClickController.pauseEvery == 0) "關閉" else ClickController.pauseEvery.toString(),
+            listOf("關閉", "10", "50", "100")) { v ->
+            ClickController.pauseEvery = if (v == "關閉") 0 else v.toInt()
+        }
         CycleRow("總點擊上限", if (ClickController.stopAtTotal == 0) "無限" else ClickController.stopAtTotal.toString(),
             listOf("無限", "100", "500", "1000")) { v ->
             ClickController.stopAtTotal = if (v == "無限") 0 else v.toInt()
