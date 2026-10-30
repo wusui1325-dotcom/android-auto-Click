@@ -12,7 +12,8 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var versionNote: String = "1.3"
+    var lastError: String = ""
+        private set
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -182,6 +183,7 @@ object ClickController {
                 val ok = service.performClick(x, y, dur)
                 if (doubleTap) service.performClick(x, y, durationMs)
                 if (!ok && stopOnError) {
+                    lastError = "手勢失敗"
                     addLog("手勢失敗，停止")
                     stop()
                     return

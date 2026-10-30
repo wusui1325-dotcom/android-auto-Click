@@ -484,6 +484,7 @@ fun ClickDetail(
             "狀態",
             when {
                 ClickController.isRunning -> "執行中 ${ClickController.elapsedSec()}s"
+                ClickController.lastError.isNotEmpty() -> ClickController.lastError
                 !ClickAccessibilityService.isEnabled() -> "需開啟無障礙"
                 else -> "停止"
             }
