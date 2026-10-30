@@ -125,7 +125,9 @@ class FloatingOverlayService : Service() {
     private fun updateButtonText() {
         val button = (overlayView as? FrameLayout)?.getChildAt(0) as? TextView ?: return
         button.text = if (ClickController.isRunning) {
-            ClickController.remainingDisplay.ifEmpty { "■" }
+            val remain = ClickController.remainingDisplay.ifEmpty { "■" }
+            val pt = if (ClickController.points.size > 1) "P${ClickController.currentPointIndex + 1}" else ""
+            if (pt.isNotEmpty()) "$remain\n$pt" else remain
         } else {
             "▶"
         }

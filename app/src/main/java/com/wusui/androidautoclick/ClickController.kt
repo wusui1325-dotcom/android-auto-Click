@@ -25,7 +25,7 @@ object ClickController {
         points[points.lastIndex] = (last.first + dx) to (last.second + dy)
     }
 
-    var remainingDisplay: String = ""
+    var currentPointIndex: Int = 0
         private set
 
     private fun updateRemaining() {
@@ -58,6 +58,7 @@ object ClickController {
 
                 if (points.size > 1) {
                     pointIndex = (pointIndex + 1) % points.size
+                    currentPointIndex = pointIndex
                 }
                 if (count >= 0) remaining--
                 updateRemaining()
