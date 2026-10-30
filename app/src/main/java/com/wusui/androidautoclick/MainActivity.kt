@@ -163,9 +163,15 @@ fun AppShell() {
                         ClickController.durationMs = v.toLong()
                     },
                     randomOffset = randomOffset,
-                    onRandomOffset = { randomOffset = it },
+                    onRandomOffset = { v ->
+                        randomOffset = v
+                        ClickController.randomOffset = v
+                    },
                     randomInterval = randomInterval,
-                    onRandomInterval = { randomInterval = it },
+                    onRandomInterval = { v ->
+                        randomInterval = v
+                        ClickController.randomInterval = v
+                    },
                     antiDetect = antiDetect,
                     onAntiDetect = { antiDetect = it },
                     floatButton = floatButton,

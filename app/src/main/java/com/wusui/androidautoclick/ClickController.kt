@@ -10,7 +10,8 @@ import android.os.Looper
  */
 object ClickController {
 
-    var mode: String = "單點" // 單點 | 多點
+    var randomOffset: Boolean = false
+    var randomInterval: Boolean = false
     var durationMs: Long = 50
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
@@ -58,8 +59,11 @@ object ClickController {
                     return
                 }
 
-                val usePoints = if (mode == "多點" && points.size > 1) points else listOf(points.first())
-                val (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
+                var (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
+                if (randomOffset) {
+                    x += (kotlin.random.Random.nextInt(-8, 9)).toFloat()
+                    y += (kotlin.random.Random.nextInt(-8, 9)).toFloat()
+                }
                 service.performClick(x, y, durationMs)
                 addLog("點擊 ${x.toInt()},${y.toInt()}")
 
@@ -71,7 +75,8 @@ object ClickController {
                 updateRemaining()
 
                 if (isRunning) {
-                    handler.postDelayed(this, intervalMs)
+                    val delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
+                    handler.postDelayed(this, delay.coerceAtLeast(20))
                 }
             }
         }
