@@ -220,7 +220,7 @@ class FloatingOverlayService : Service() {
     }
 
     override fun onDestroy() {
-        refreshHandler.removeCallbacks(refreshRunnable)
+        refreshHandler.removeCallbacksAndMessages(null)
         if (ClickController.isRunning) ClickController.stop()
         removeOverlay()
         isRunning = false

@@ -124,6 +124,11 @@ fun AppShell() {
     LaunchedEffect(Unit) {
         ClickController.attach(context)
         SettingsStore.init(context)
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            (context as? android.app.Activity)?.requestPermissions(
+                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100
+            )
+        }
         ClickController.intervalMs = interval.toLong()
         ClickController.durationMs = duration.toLong()
         ClickController.count = if (count == "無限") -1 else count.toIntOrNull() ?: -1
