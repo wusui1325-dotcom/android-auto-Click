@@ -14,6 +14,8 @@ import android.os.Looper
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.AccelerateInterpolator
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -64,6 +66,7 @@ class OverlayService : Service() {
     private var barCenterY = 0f
     private var barCenterInited = false
     private var expanded = true
+    private var barAnimating = false
     private val markers = mutableMapOf<String, Pair<View, WindowManager.LayoutParams>>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var layoutToScreenOffsetY = 0
@@ -194,7 +197,7 @@ class OverlayService : Service() {
         if (!android.provider.Settings.canDrawOverlays(this)) {
             closeAll(); return
         }
-        rebuildBar()
+        rebuildBar(animated = barView == null)
     }
 
     private var lastBarKey = ""
@@ -202,7 +205,13 @@ class OverlayService : Service() {
         val st = ClickEngine.status.value
         val key =
             "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|${AppStore.barVertical.value}|${AppStore.barSize.value}"
-        if (key != lastBarKey) rebuildBar()
+        if (key == lastBarKey) return
+        // Animate only structure changes (expand / orientation / size), not play/record glyph flips
+        val old = lastBarKey.split("|")
+        val neu = key.split("|")
+        val structural = old.size >= 7 && neu.size >= 7 &&
+            (old[0] != neu[0] || old[5] != neu[5] || old[6] != neu[6])
+        rebuildBar(animated = structural && lastBarKey.isNotEmpty())
     }
 
     /** Last laid-out bar size for center→top-left conversion. */
@@ -232,13 +241,42 @@ class OverlayService : Service() {
         }
     }
 
-    private fun rebuildBar() {
+    private fun rebuildBar(animated: Boolean = false) {
+        if (barAnimating && animated) return
         val st = ClickEngine.status.value
         val vertical = AppStore.barVertical.value
         val sizeIdx = AppStore.barSize.value
         lastBarKey =
             "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|$vertical|$sizeIdx"
-        // 0小 1中 2大 → scale
+
+        val oldHost = barView
+        if (animated && oldHost != null) {
+            barAnimating = true
+            oldHost.animate().cancel()
+            oldHost.animate()
+                .alpha(0f)
+                .scaleX(0.96f)
+                .scaleY(0.96f)
+                .setDuration(120L)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction {
+                    try { windowManager.removeView(oldHost) } catch (_: Exception) {}
+                    if (barView === oldHost) barView = null
+                    mountBar(enterAnim = true)
+                }
+                .start()
+        } else {
+            oldHost?.animate()?.cancel()
+            oldHost?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
+            barView = null
+            mountBar(enterAnim = animated)
+        }
+    }
+
+    private fun mountBar(enterAnim: Boolean) {
+        val st = ClickEngine.status.value
+        val vertical = AppStore.barVertical.value
+        val sizeIdx = AppStore.barSize.value
         val scale = when (sizeIdx) { 0 -> 0.82f; 2 -> 1.22f; else -> 1f }
         fun sdp(v: Int) = (dp(v) * scale).toInt().coerceAtLeast(1)
 
@@ -248,8 +286,6 @@ class OverlayService : Service() {
             barCenterY = dp(140) + dp(28).toFloat()
             barCenterInited = true
         }
-
-        barView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
 
         val row = LinearLayout(this).apply {
             orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
@@ -291,7 +327,7 @@ class OverlayService : Service() {
             if (st.running) "停止" else "開始"
         ) {
             ClickEngine.toggle(fromOverlay = true)
-            rebuildBar()
+            rebuildBar(animated = false)
         }
 
         if (expanded) {
@@ -312,7 +348,7 @@ class OverlayService : Service() {
                     ) {
                         AppStore.setDeleteMode(!AppStore.deleteMode.value)
                         toast(if (AppStore.deleteMode.value) "點一個觸控點／拖拽組以刪除" else "已取消刪除")
-                        rebuildBar()
+                        rebuildBar(animated = false)
                     }
                 }
                 SessionType.RECORD -> {
@@ -321,7 +357,7 @@ class OverlayService : Service() {
                         if (st.recording) "停錄" else "錄製"
                     ) {
                         ClickEngine.toggleRecording()
-                        rebuildBar()
+                        rebuildBar(animated = false)
                         markersDirty = true
                     }
                     iconBtn(FlatIconView.Kind.PLUS, "加點") {
@@ -336,18 +372,24 @@ class OverlayService : Service() {
             iconBtn(FlatIconView.Kind.PARAMS, "參數") { showParamsPopup() }
             iconBtn(FlatIconView.Kind.COLLAPSE, "收起") {
                 expanded = false
-                rebuildBar()
+                rebuildBar(animated = true)
             }
         } else {
             iconBtn(FlatIconView.Kind.EXPAND, "展開") {
                 expanded = true
-                rebuildBar()
+                rebuildBar(animated = true)
             }
         }
 
         iconBtn(FlatIconView.Kind.CLOSE, "關閉", danger = true) { closeAll() }
 
-        // Inner content (may scroll when expanded)
+        // Soft stagger: mid buttons start slightly transparent (expand feel)
+        if (enterAnim && expanded && row.childCount > 2) {
+            for (i in 1 until row.childCount - 1) {
+                row.getChildAt(i).alpha = 0f
+            }
+        }
+
         val content: View = when {
             expanded && vertical -> ScrollView(this).apply {
                 isVerticalScrollBarEnabled = false
@@ -360,7 +402,6 @@ class OverlayService : Service() {
             else -> row
         }
 
-        // DragShell intercepts touches BEFORE clickable children — fixes "拖不動"
         val host = DragShell(this).apply { addView(content) }
 
         val lp = baseLp(
@@ -372,14 +413,49 @@ class OverlayService : Service() {
         }
         wireBarDrag(host, lp)
         try {
+            if (enterAnim) {
+                host.alpha = 0f
+                host.scaleX = if (vertical) 1f else 0.94f
+                host.scaleY = if (vertical) 0.94f else 1f
+            }
             windowManager.addView(host, lp)
             barView = host
             barParams = lp
             host.post {
                 if (host.width > 0) { barW = host.width; barH = host.height }
                 applyBarCenter(host, lp)
+                if (enterAnim) {
+                    host.animate().cancel()
+                    host.animate()
+                        .alpha(1f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(180L)
+                        .setInterpolator(DecelerateInterpolator())
+                        .withEndAction {
+                            barAnimating = false
+                            // Stagger mid buttons in
+                            if (expanded) {
+                                val r = row
+                                for (i in 1 until r.childCount - 1) {
+                                    val c = r.getChildAt(i)
+                                    c.animate().cancel()
+                                    c.animate()
+                                        .alpha(1f)
+                                        .setStartDelay((i * 18L).coerceAtMost(90L))
+                                        .setDuration(140L)
+                                        .setInterpolator(DecelerateInterpolator())
+                                        .start()
+                                }
+                            }
+                        }
+                        .start()
+                } else {
+                    barAnimating = false
+                }
             }
         } catch (_: Exception) {
+            barAnimating = false
         }
     }
 
@@ -388,6 +464,8 @@ class OverlayService : Service() {
     }
 
     private fun removeBar() {
+        barAnimating = false
+        barView?.animate()?.cancel()
         barView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
         barView = null
     }
