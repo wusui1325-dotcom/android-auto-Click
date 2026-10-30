@@ -37,9 +37,9 @@ object ClickController {
     private var remaining: Int = 0
     private var pointIndex = 0
 
-    fun start() {
-        if (isRunning) return
-        val service = ClickAccessibilityService.instance ?: return
+    fun start(): Boolean {
+        if (isRunning) return true
+        val service = ClickAccessibilityService.instance ?: return false
         isRunning = true
         remaining = count
         pointIndex = 0
@@ -68,6 +68,7 @@ object ClickController {
             }
         }
         handler.post(runnable!!)
+        return true
     }
 
     fun stop() {
@@ -76,7 +77,12 @@ object ClickController {
         runnable = null
     }
 
-    fun toggle() {
-        if (isRunning) stop() else start()
+    fun toggle(): Boolean {
+        return if (isRunning) {
+            stop()
+            false
+        } else {
+            start()
+        }
     }
 }

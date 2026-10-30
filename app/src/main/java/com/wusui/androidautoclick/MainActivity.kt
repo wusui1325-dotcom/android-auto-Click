@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import android.content.Intent
 import com.wusui.androidautoclick.service.FloatingOverlayService
+import com.wusui.androidautoclick.service.ClickAccessibilityService
 import com.wusui.androidautoclick.ClickController
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -417,7 +418,11 @@ fun ClickDetail(
         }
         SettingsStatusRow(
             "狀態",
-            if (ClickController.isRunning) "執行中" else "停止"
+            when {
+                ClickController.isRunning -> "執行中"
+                !ClickAccessibilityService.isEnabled() -> "需開啟無障礙"
+                else -> "停止"
+            }
         ) {
             ClickController.toggle()
         }
