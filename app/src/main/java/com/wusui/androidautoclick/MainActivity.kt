@@ -645,6 +645,9 @@ fun SequenceDetail() {
             val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
             SequenceRecorder.importText(text)
         }
+        SettingsStatusRow("打亂步驟", "") {
+            SequenceRecorder.shuffle()
+        }
         SettingsStatusRow("反轉步驟", "") {
             SequenceRecorder.reverse()
         }
