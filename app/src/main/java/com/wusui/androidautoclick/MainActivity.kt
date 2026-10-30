@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
+import android.content.Intent
+import com.wusui.androidautoclick.service.FloatingOverlayService
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -146,7 +148,20 @@ fun AppShell() {
                     antiDetect = antiDetect,
                     onAntiDetect = { antiDetect = it },
                     floatButton = floatButton,
-                    onFloatButton = { floatButton = it },
+                    onFloatButton = { enabled ->
+                        floatButton = enabled
+                        if (enabled && overlayOn) {
+                            context.startService(
+                                Intent(context, FloatingOverlayService::class.java)
+                                    .setAction(FloatingOverlayService.ACTION_SHOW)
+                            )
+                        } else {
+                            context.startService(
+                                Intent(context, FloatingOverlayService::class.java)
+                                    .setAction(FloatingOverlayService.ACTION_HIDE)
+                            )
+                        }
+                    },
                     showRemain = showRemain,
                     onShowRemain = { showRemain = it },
                     draggable = draggable,
@@ -202,7 +217,20 @@ fun AppShell() {
                             antiDetect = antiDetect,
                             onAntiDetect = { antiDetect = it },
                             floatButton = floatButton,
-                            onFloatButton = { floatButton = it },
+                            onFloatButton = { enabled ->
+                        floatButton = enabled
+                        if (enabled && overlayOn) {
+                            context.startService(
+                                Intent(context, FloatingOverlayService::class.java)
+                                    .setAction(FloatingOverlayService.ACTION_SHOW)
+                            )
+                        } else {
+                            context.startService(
+                                Intent(context, FloatingOverlayService::class.java)
+                                    .setAction(FloatingOverlayService.ACTION_HIDE)
+                            )
+                        }
+                    },
                             showRemain = showRemain,
                             onShowRemain = { showRemain = it },
                             draggable = draggable,

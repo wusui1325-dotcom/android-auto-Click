@@ -42,5 +42,10 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- 懸浮窗服務 -->
+        <service
+            android:name=".service.FloatingOverlayService"
+            android:exported="false" />
+
     </application>
 </manifest>
