@@ -563,6 +563,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("執行時隱藏懸浮窗", ClickController.autoHideOverlay) {
+            ClickController.autoHideOverlay = it
+        }
         ToggleRow("開始提示", ClickController.showToast) {
             ClickController.showToast = it
         }
