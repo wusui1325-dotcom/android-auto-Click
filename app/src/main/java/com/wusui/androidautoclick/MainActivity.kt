@@ -100,6 +100,7 @@ fun AppShell() {
     // 初始化控制器預設值
     LaunchedEffect(Unit) {
         ClickController.attach(context)
+        SettingsStore.init(context)
         ClickController.intervalMs = interval.toLong()
         ClickController.durationMs = duration.toLong()
         ClickController.count = if (count == "無限") -1 else count.toIntOrNull() ?: -1
@@ -152,26 +153,31 @@ fun AppShell() {
                     onInterval = { v ->
                         interval = v
                         ClickController.intervalMs = v.toLong()
+                        SettingsStore.save()
                     },
                     count = count,
                     onCount = { v ->
                         count = v
                         ClickController.count = if (v == "無限") -1 else v.toIntOrNull() ?: -1
+                        SettingsStore.save()
                     },
                     duration = duration,
                     onDuration = { v ->
                         duration = v
                         ClickController.durationMs = v.toLong()
+                        SettingsStore.save()
                     },
                     randomOffset = randomOffset,
                     onRandomOffset = { v ->
                         randomOffset = v
                         ClickController.randomOffset = v
+                        SettingsStore.save()
                     },
                     randomInterval = randomInterval,
                     onRandomInterval = { v ->
                         randomInterval = v
                         ClickController.randomInterval = v
+                        SettingsStore.save()
                     },
                     antiDetect = antiDetect,
                     onAntiDetect = { v ->
