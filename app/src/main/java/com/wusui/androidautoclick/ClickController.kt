@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var slowStart: Boolean = false // 前幾次間隔加倍
+    var endBeep: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -178,6 +178,10 @@ object ClickController {
         isRunning = false
         runnable?.let { handler.removeCallbacks(it) }
         runnable = null
+        if (endBeep) {
+            android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 60)
+                .startTone(android.media.ToneGenerator.TONE_PROP_ACK, 80)
+        }
         appContext?.let { ClickNotification.cancel(it) }
     }
 
