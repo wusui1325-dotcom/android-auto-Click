@@ -57,7 +57,7 @@ class FloatingOverlayService : Service() {
     private fun showOverlay() {
         if (overlayView != null) return
 
-        val size = dp(56)
+        val size = dp(64)
         val view = FrameLayout(this).apply {
             layoutParams = ViewGroup.LayoutParams(size, size)
         }
@@ -67,10 +67,11 @@ class FloatingOverlayService : Service() {
             gravity = android.view.Gravity.CENTER
             text = if (ClickController.isRunning) "■" else "▶"
             setTextColor(Color.parseColor("#F5F5F7"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#1C1C1E"))
+                setStroke(dp(1), Color.parseColor("#2C2C2E"))
             }
             setOnClickListener { toggleClicking() }
         }
