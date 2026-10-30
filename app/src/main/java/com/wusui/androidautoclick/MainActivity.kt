@@ -928,6 +928,10 @@ fun AboutDetail() {
             val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
             SettingsStore.importText(text)
         }
+        SettingsStatusRow("高對比", if (SettingsColors.isDark) "開" else "關") {
+            SettingsColors.isDark = true
+            themeDark = true
+        }
         SettingsStatusRow("切換主題", if (themeDark) "深色" else "淺色") {
             themeDark = !themeDark
             SettingsColors.isDark = themeDark
