@@ -24,13 +24,20 @@ object SettingsStore {
         SequenceRecorder.replayLoops = prefs.getInt("loops", 1)
     }
 
-    fun exportText(): String = buildString {
-        appendLine("interval=${ClickController.intervalMs}")
-        appendLine("duration=${ClickController.durationMs}")
-        appendLine("count=${ClickController.count}")
-        appendLine("mode=${ClickController.mode}")
-        appendLine("maxCps=${ClickController.maxCps}")
-        appendLine("startDelay=${ClickController.startDelayMs}")
-        appendLine("loops=${SequenceRecorder.replayLoops}")
+    fun importText(text: String) {
+        text.lines().forEach { line ->
+            val p = line.split("=", limit = 2)
+            if (p.size != 2) return@forEach
+            when (p[0]) {
+                "interval" -> ClickController.intervalMs = p[1].toLongOrNull() ?: ClickController.intervalMs
+                "duration" -> ClickController.durationMs = p[1].toLongOrNull() ?: ClickController.durationMs
+                "count" -> ClickController.count = p[1].toIntOrNull() ?: ClickController.count
+                "mode" -> ClickController.mode = p[1]
+                "maxCps" -> ClickController.maxCps = p[1].toIntOrNull() ?: ClickController.maxCps
+                "startDelay" -> ClickController.startDelayMs = p[1].toLongOrNull() ?: ClickController.startDelayMs
+                "loops" -> SequenceRecorder.replayLoops = p[1].toIntOrNull() ?: SequenceRecorder.replayLoops
+            }
+        }
+        save()
     }
 }

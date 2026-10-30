@@ -733,6 +733,11 @@ fun AboutDetail() {
             val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("settings", text))
         }
+        SettingsStatusRow("匯入設定", "") {
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
+            SettingsStore.importText(text)
+        }
         SettingsStatusRow("切換主題", if (themeDark) "深色" else "淺色") {
             themeDark = !themeDark
             SettingsColors.isDark = themeDark
