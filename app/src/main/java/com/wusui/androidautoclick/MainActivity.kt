@@ -619,6 +619,9 @@ fun ClickDetail(
             ClickController.humanize = it
         }
         ToggleRow("隨機偏移", randomOffset) { onRandomOffset(it) }
+        ToggleRow("間隔微抖", ClickController.jitterInterval) {
+            ClickController.jitterInterval = it
+        }
         ToggleRow("隨機間隔", randomInterval) { onRandomInterval(it) }
         ToggleRow("防偵測延遲", antiDetect) { onAntiDetect(it) }
         ToggleRow("開始震動", ClickController.vibrateOnStart) {

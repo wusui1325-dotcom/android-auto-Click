@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var longPress: Boolean = false // 長按式點擊（延長 duration）
+    var jitterInterval: Boolean = false // 間隔微抖
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -181,6 +181,7 @@ object ClickController {
 
                 if (isRunning) {
                     var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
+                    if (jitterInterval) delay += kotlin.random.Random.nextLong(-10, 11)
                     if (invertInterval && totalClicks > 0) delay = (delay * 0.95).toLong().coerceAtLeast(20)
                     if (decelerate && totalClicks > 0) delay = (delay * 1.05).toLong()
                     if (slowStart && totalClicks < 5) delay *= 2
