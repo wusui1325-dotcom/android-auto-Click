@@ -619,6 +619,9 @@ fun ClickDetail(
             ClickController.humanize = it
         }
         ToggleRow("隨機偏移", randomOffset) { onRandomOffset(it) }
+        ToggleRow("只點奇數", ClickController.onlyOdd) {
+            ClickController.onlyOdd = it
+        }
         ToggleRow("只點偶數", ClickController.onlyEven) {
             ClickController.onlyEven = it
         }

@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var onlyEven: Boolean = false // 只點偶數次
+    var onlyOdd: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -125,6 +125,10 @@ object ClickController {
                 }
 
                 if (onlyEven && totalClicks % 2 == 1) {
+                    if (isRunning) handler.postDelayed(this, intervalMs)
+                    return
+                }
+                if (onlyOdd && totalClicks % 2 == 0) {
                     if (isRunning) handler.postDelayed(this, intervalMs)
                     return
                 }
