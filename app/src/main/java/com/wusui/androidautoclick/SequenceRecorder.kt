@@ -2,11 +2,14 @@ package com.wusui.androidautoclick
 
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.wusui.androidautoclick.service.ClickAccessibilityService
 
-/**
- * 簡易序列錄製與回放。
- */
 object SequenceRecorder {
 
     data class Step(
@@ -18,16 +21,18 @@ object SequenceRecorder {
         val delayMs: Long = 0
     )
 
-    val steps = mutableListOf<Step>()
-    val saved = mutableMapOf<String, List<Step>>()
-    var isRecording = false
+    val steps = mutableStateListOf<Step>()
+    val saved = mutableStateMapOf<String, List<Step>>()
+    var isRecording by mutableStateOf(false)
         private set
-    var isReplaying = false
+    var isReplaying by mutableStateOf(false)
         private set
-    var replayLoops: Int = 1 // 0 = 無限
+    var replayLoops by mutableIntStateOf(1) // 0 = 無限
 
     private val handler = Handler(Looper.getMainLooper())
     private var replayIndex = 0
+    private var currentLoop = 0
+    private var generation = 0
 
     fun start() {
         isRecording = true
@@ -54,10 +59,17 @@ object SequenceRecorder {
         stopReplay()
     }
 
-    fun clearSaved() { saved.clear() }
+    fun clearSaved() {
+        saved.clear()
+    }
 
-    fun reverse() { steps.reverse() }
-    fun shuffle() { steps.shuffle() }
+    fun reverse() {
+        steps.reverse()
+    }
+
+    fun shuffle() {
+        steps.shuffle()
+    }
 
     fun save(name: String) {
         if (steps.isEmpty()) return
@@ -65,7 +77,10 @@ object SequenceRecorder {
     }
 
     fun load(name: String) {
-        saved[name]?.let { steps.clear(); steps.addAll(it) }
+        saved[name]?.let {
+            steps.clear()
+            steps.addAll(it)
+        }
     }
 
     fun exportText(): String = steps.joinToString("\n") { s ->
@@ -134,19 +149,18 @@ object SequenceRecorder {
         }
     }
 
-    private var currentLoop = 0
-
     fun replay() {
         if (isReplaying || steps.isEmpty()) return
         val service = ClickAccessibilityService.instance ?: return
         isReplaying = true
         replayIndex = 0
         currentLoop = 0
-        playNext(service)
+        val gen = ++generation
+        playNext(service, gen)
     }
 
-    private fun playNext(service: ClickAccessibilityService) {
-        if (!isReplaying) return
+    private fun playNext(service: ClickAccessibilityService, gen: Int) {
+        if (!isReplaying || gen != generation) return
         if (replayIndex >= steps.size) {
             currentLoop++
             if (replayLoops > 0 && currentLoop >= replayLoops) {
@@ -155,17 +169,34 @@ object SequenceRecorder {
             }
             replayIndex = 0
         }
-        val step = steps.getOrNull(replayIndex) ?: return
-        replayIndex++
-        when (step.type) {
-            "click" -> service.performClick(step.x, step.y, ClickController.durationMs)
-            "swipe" -> service.performSwipe(step.x, step.y, step.x2, step.y2, step.delayMs.coerceAtLeast(50))
-            "wait" -> {}
+        val step = steps.getOrNull(replayIndex) ?: run {
+            isReplaying = false
+            return
         }
-        handler.postDelayed({ playNext(service) }, step.delayMs.coerceAtLeast(50))
+        replayIndex++
+        val afterDelay = {
+            if (isReplaying && gen == generation) {
+                handler.postDelayed({ playNext(service, gen) }, step.delayMs.coerceAtLeast(50))
+            }
+        }
+        when (step.type) {
+            "click" -> {
+                val ok = service.performClick(step.x, step.y, ClickController.durationMs) { afterDelay() }
+                if (!ok) afterDelay()
+            }
+            "swipe" -> {
+                val ok = service.performSwipe(
+                    step.x, step.y, step.x2, step.y2, step.delayMs.coerceAtLeast(50)
+                ) { afterDelay() }
+                if (!ok) afterDelay()
+            }
+            "wait" -> afterDelay()
+            else -> afterDelay()
+        }
     }
 
     fun stopReplay() {
+        generation++
         isReplaying = false
         handler.removeCallbacksAndMessages(null)
     }

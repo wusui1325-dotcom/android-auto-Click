@@ -4,10 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Intent
 import android.graphics.Path
-import android.view.accessibility.AccessibilityEvent
-import com.wusui.androidautoclick.SequenceRecorder
 import android.os.Handler
 import android.os.Looper
+import android.view.accessibility.AccessibilityEvent
+import com.wusui.androidautoclick.SequenceRecorder
 
 /**
  * 自動點擊核心服務。
@@ -21,6 +21,8 @@ class ClickAccessibilityService : AccessibilityService() {
 
         fun isEnabled(): Boolean = instance != null
     }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -53,25 +55,62 @@ class ClickAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     /**
-     * 在指定座標執行單次點擊。
-     * @return 是否成功送出手勢
+     * 在指定座標執行單次點擊；完成／取消後呼叫 onDone（主線程）。
+     * @return 是否成功送出手勢（不等於手勢已完成）
      */
-    fun performClick(x: Float, y: Float, durationMs: Long = 50): Boolean {
-        if (durationMs < 1) return false
+    fun performClick(
+        x: Float,
+        y: Float,
+        durationMs: Long = 50,
+        onDone: ((Boolean) -> Unit)? = null
+    ): Boolean {
+        if (durationMs < 1) {
+            onDone?.invoke(false)
+            return false
+        }
         val path = Path().apply { moveTo(x, y) }
         val stroke = GestureDescription.StrokeDescription(path, 0, durationMs)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        return dispatchGesture(gesture, null, null)
+        return dispatchWithCallback(gesture, onDone)
     }
 
-    fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 300): Boolean {
-        if (durationMs < 1) return false
+    fun performSwipe(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        durationMs: Long = 300,
+        onDone: ((Boolean) -> Unit)? = null
+    ): Boolean {
+        if (durationMs < 1) {
+            onDone?.invoke(false)
+            return false
+        }
         val path = Path().apply {
             moveTo(x1, y1)
             lineTo(x2, y2)
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, durationMs)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        return dispatchGesture(gesture, null, null)
+        return dispatchWithCallback(gesture, onDone)
+    }
+
+    private fun dispatchWithCallback(
+        gesture: GestureDescription,
+        onDone: ((Boolean) -> Unit)?
+    ): Boolean {
+        if (onDone == null) {
+            return dispatchGesture(gesture, null, null)
+        }
+        val cb = object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                mainHandler.post { onDone(true) }
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                mainHandler.post { onDone(false) }
+            }
+        }
+        return dispatchGesture(gesture, cb, null)
     }
 }

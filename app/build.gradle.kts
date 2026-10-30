@@ -14,8 +14,8 @@ android {
         applicationId = "com.wusui.androidautoclick"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.5.0"
+        versionCode = 5
+        versionName = "1.6.0"
     }
 
     signingConfigs {
@@ -25,10 +25,29 @@ android {
             if (local.exists()) {
                 local.inputStream().use { props.load(it) }
             }
-            storeFile = file(props.getProperty("storeFile") ?: "release.keystore")
-            storePassword = props.getProperty("storePassword") ?: "android"
-            keyAlias = props.getProperty("keyAlias") ?: "release"
-            keyPassword = props.getProperty("keyPassword") ?: "android"
+            // Prefer env (CI secrets) then local.properties. No committed plaintext defaults.
+            val storePath = System.getenv("STORE_FILE")
+                ?: props.getProperty("storeFile")
+                ?: "release.keystore"
+            val storePass = System.getenv("STORE_PASSWORD")
+                ?: props.getProperty("storePassword")
+            val alias = System.getenv("KEY_ALIAS")
+                ?: props.getProperty("keyAlias")
+                ?: "release"
+            val keyPass = System.getenv("KEY_PASSWORD")
+                ?: props.getProperty("keyPassword")
+                ?: storePass
+            // Resolve against repo root so "release.keystore" and "../release.keystore" both work
+            val candidate = rootProject.file(storePath)
+            storeFile = if (candidate.exists()) candidate else file(storePath)
+            if (storePass.isNullOrBlank() || keyPass.isNullOrBlank()) {
+                // Allow configure phase; assembleRelease will fail if file/password missing.
+                println("WARNING: release signing password missing (set env or local.properties). See Drive android-auto-Click-secrets.")
+            } else {
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
+            }
         }
     }
 

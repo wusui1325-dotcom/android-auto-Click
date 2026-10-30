@@ -16,6 +16,11 @@ build/
 *.ap_
 *.aab
 
+# Signing (keep on machine / Drive android-auto-Click-secrets — never commit)
+*.keystore
+*.jks
+release.keystore
+
 # OS
 .DS_Store
 Thumbs.db
