@@ -528,23 +528,17 @@ fun ClickDetail(
 
     SettingsSection(label = "快速預設") {
         SettingsStatusRow("慢速簽到", "500ms") {
-            interval = 500
             ClickController.intervalMs = 500
-            count = "10"
             ClickController.count = 10
             SettingsStore.save()
         }
         SettingsStatusRow("快速連點", "50ms") {
-            interval = 50
             ClickController.intervalMs = 50
-            count = "無限"
             ClickController.count = -1
             SettingsStore.save()
         }
         SettingsStatusRow("中速任務", "200ms") {
-            interval = 200
             ClickController.intervalMs = 200
-            count = "50"
             ClickController.count = 50
             SettingsStore.save()
         }
