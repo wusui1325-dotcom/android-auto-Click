@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -90,13 +91,39 @@ fun ClickScreen() {
             SwitchRow("間隔抖動", "間隔 ±30ms", cfg.randomInterval) {
                 SettingsRepository.updateConfig { c -> c.copy(randomInterval = it) }
             }
+            SwitchRow("執行中鎖定標記", "避免誤觸標記打斷手勢", cfg.lockMarkersWhileRunning) {
+                SettingsRepository.updateConfig { c -> c.copy(lockMarkersWhileRunning = it) }
+            }
+            SwitchRow("觸覺回饋", "開始／停止輕振", cfg.hapticFeedback) {
+                SettingsRepository.updateConfig { c -> c.copy(hapticFeedback = it) }
+            }
         }
 
         Spacer(Modifier.height(12.dp))
-        SectionLabel("標記點（${points.size}）")
+        SectionLabel("標記點（${points.size}）— 可編輯座標")
         SettingsCard {
             points.forEachIndexed { i, p ->
-                SettingsRow("點 ${i + 1}", trailing = "${p.x.toInt()}, ${p.y.toInt()}")
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    Text("點 ${i + 1}", color = AppColors.text(), fontSize = 15.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("X", color = AppColors.secondary(), fontSize = 12.sp)
+                        Spacer(Modifier.width(4.dp))
+                        NumberField(p.x.toInt().toString(), { v ->
+                            v.toFloatOrNull()?.let { x ->
+                                SettingsRepository.updatePoint(i, x, p.y)
+                            }
+                        }, fieldWidth = 64)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Y", color = AppColors.secondary(), fontSize = 12.sp)
+                        Spacer(Modifier.width(4.dp))
+                        NumberField(p.y.toInt().toString(), { v ->
+                            v.toFloatOrNull()?.let { y ->
+                                SettingsRepository.updatePoint(i, p.x, y)
+                            }
+                        }, fieldWidth = 64)
+                    }
+                }
             }
             SettingsRow(
                 title = "新增螢幕中央點",
@@ -120,13 +147,19 @@ fun ClickScreen() {
 
         Spacer(Modifier.height(16.dp))
         if (status.lastError.isNotBlank()) {
-            Text(status.lastError, color = AppColors.danger, fontSize = 13.sp)
+            Text(
+                status.lastError,
+                color = AppColors.danger,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            SettingsRow("清除錯誤提示", onClick = { ClickEngine.clearError() })
             Spacer(Modifier.height(8.dp))
         }
         ActionButton(
-            label = if (status.running || status.replaying) "停止" else "開始",
+            label = if (status.active) "停止" else "開始",
             onClick = { ClickEngine.toggle() },
-            danger = status.running || status.replaying
+            danger = status.active
         )
         Spacer(Modifier.height(24.dp))
     }

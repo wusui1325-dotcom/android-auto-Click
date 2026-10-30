@@ -54,6 +54,8 @@ object SettingsRepository {
             startDelayMs = p.getLong("startDelay", 0),
             sequenceLoops = p.getInt("loops", 1),
             showMarkers = p.getBoolean("showMarkers", true),
+            lockMarkersWhileRunning = p.getBoolean("lockMarkers", true),
+            hapticFeedback = p.getBoolean("haptic", true),
             darkTheme = p.getBoolean("dark", true)
         )
         val pts = parsePoints(p.getString("points", null))
@@ -145,6 +147,13 @@ object SettingsRepository {
         setSequenceSteps(list)
     }
 
+    fun duplicateSequenceStep(index: Int) {
+        val list = _sequenceSteps.value.toMutableList()
+        if (index !in list.indices) return
+        list.add(index + 1, list[index])
+        setSequenceSteps(list)
+    }
+
     fun updateSequenceStep(index: Int, step: SequenceStep) {
         val list = _sequenceSteps.value.toMutableList()
         if (index !in list.indices) return
@@ -191,6 +200,8 @@ object SettingsRepository {
             ?.putLong("startDelay", c.startDelayMs)
             ?.putInt("loops", c.sequenceLoops)
             ?.putBoolean("showMarkers", c.showMarkers)
+            ?.putBoolean("lockMarkers", c.lockMarkersWhileRunning)
+            ?.putBoolean("haptic", c.hapticFeedback)
             ?.putBoolean("dark", c.darkTheme)
             ?.apply()
     }

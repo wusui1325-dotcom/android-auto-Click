@@ -198,7 +198,7 @@ fun AppShell(onThemeChange: () -> Unit = {}) {
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            if (cfg.darkTheme) "深色 · 2.0.1" else "明亮 · 2.0.1",
+                            if (cfg.darkTheme) "深色 · 2.0.2" else "明亮 · 2.0.2",
                             color = AppColors.secondary(),
                             fontSize = 12.sp
                         )

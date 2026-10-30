@@ -47,5 +47,14 @@
                 android:value="Keep floating control overlay alive while auto-click is armed" />
         </service>
 
+        <receiver
+            android:name=".service.EngineActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.wusui.androidautoclick.action.STOP" />
+                <action android:name="com.wusui.androidautoclick.action.TOGGLE" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

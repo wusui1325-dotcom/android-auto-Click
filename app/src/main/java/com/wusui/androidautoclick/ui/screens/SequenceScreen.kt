@@ -166,6 +166,7 @@ fun SequenceScreen() {
                         Spacer(Modifier.weight(1f))
                         TinyAction("↑") { SettingsRepository.moveSequenceStep(i, (i - 1).coerceAtLeast(0)) }
                         TinyAction("↓") { SettingsRepository.moveSequenceStep(i, (i + 1).coerceAtMost(steps.lastIndex)) }
+                        TinyAction("複") { SettingsRepository.duplicateSequenceStep(i) }
                         TinyAction("刪") { SettingsRepository.removeSequenceStep(i) }
                     }
                     if (step.type == SequenceStep.StepType.CLICK || step.type == SequenceStep.StepType.SWIPE) {

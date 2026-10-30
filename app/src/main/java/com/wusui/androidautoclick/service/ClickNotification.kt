@@ -45,11 +45,17 @@ object ClickNotification {
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val stop = PendingIntent.getBroadcast(
+            context, 1,
+            Intent(context, EngineActionReceiver::class.java).setAction(EngineActionReceiver.ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(context, CHANNEL_OVERLAY)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentTitle("AutoClick")
             .setContentText(text)
             .setContentIntent(launch)
+            .addAction(0, "停止", stop)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -67,10 +73,22 @@ object ClickNotification {
         try {
             ensureChannel(context)
             val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val launch = PendingIntent.getActivity(
+                context, 2,
+                Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val stop = PendingIntent.getBroadcast(
+                context, 3,
+                Intent(context, EngineActionReceiver::class.java).setAction(EngineActionReceiver.ACTION_STOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
             val n = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle("AutoClick")
+                .setContentTitle("AutoClick 執行中")
                 .setContentText(text)
+                .setContentIntent(launch)
+                .addAction(0, "停止", stop)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)

@@ -47,6 +47,9 @@ data class EngineConfig(
     val startDelayMs: Long = 0L,
     val sequenceLoops: Int = 1, // 0 = infinite
     val showMarkers: Boolean = true,
+    /** Hide / untouchable markers while running so finger can't cancel gestures. */
+    val lockMarkersWhileRunning: Boolean = true,
+    val hapticFeedback: Boolean = true,
     val darkTheme: Boolean = true
 )
 
@@ -58,4 +61,6 @@ data class EngineStatus(
     val lastError: String = "",
     val recording: Boolean = false,
     val replaying: Boolean = false
-)
+) {
+    val active: Boolean get() = running || replaying
+}

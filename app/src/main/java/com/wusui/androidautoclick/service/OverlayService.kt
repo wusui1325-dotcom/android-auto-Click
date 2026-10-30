@@ -72,7 +72,7 @@ class OverlayService : Service() {
                 markersDirty = false
                 refreshMarkers()
             }
-            mainHandler.postDelayed(this, 350)
+            mainHandler.postDelayed(this, 800)
         }
     }
 
@@ -90,13 +90,19 @@ class OverlayService : Service() {
     private fun observeRepo() {
         observeJob?.cancel()
         observeJob = scope?.launch {
-            combine(
-                SettingsRepository.points,
-                SettingsRepository.config
-            ) { pts, cfg -> pts to cfg.showMarkers }
-                .collect {
-                    markersDirty = true
+            launch {
+                combine(
+                    SettingsRepository.points,
+                    SettingsRepository.config
+                ) { pts, cfg -> pts.size to (cfg.showMarkers to cfg.lockMarkersWhileRunning) }
+                    .collect { markersDirty = true }
+            }
+            launch {
+                ClickEngine.status.collect {
+                    updateCollapsedGlyph()
+                    markersDirty = true // lock/unlock markers while active
                 }
+            }
         }
     }
 
@@ -281,7 +287,7 @@ class OverlayService : Service() {
         }
         val st = ClickEngine.status.value
         addBtn(if (st.running || st.replaying) "停止" else "開始") {
-            toggleClicking()
+            ClickEngine.toggle(fromOverlay = true)
             rebuildControl()
         }
         addBtn("新增點") {
@@ -312,9 +318,18 @@ class OverlayService : Service() {
     private fun refreshMarkers() {
         markers.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
         markers.clear()
-        if (!SettingsRepository.config.value.showMarkers) return
+        val cfg = SettingsRepository.config.value
+        if (!cfg.showMarkers) return
+        val active = ClickEngine.status.value.active
+        if (active && cfg.lockMarkersWhileRunning) {
+            // Show dim locked markers (not touchable) so user still sees targets
+            SettingsRepository.points.value.forEachIndexed { i, p ->
+                addMarker(p.x, p.y, "${i + 1}", i, locked = true)
+            }
+            return
+        }
         SettingsRepository.points.value.forEachIndexed { i, p ->
-            addMarker(p.x, p.y, "${i + 1}", i)
+            addMarker(p.x, p.y, "${i + 1}", i, locked = false)
         }
     }
 
@@ -325,7 +340,7 @@ class OverlayService : Service() {
         }, 280)
     }
 
-    private fun addMarker(x: Float, y: Float, label: String, index: Int) {
+    private fun addMarker(x: Float, y: Float, label: String, index: Int, locked: Boolean = false) {
         val size = dp(36)
         val tv = TextView(this).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
@@ -342,6 +357,18 @@ class OverlayService : Service() {
         val params = baseOverlayParams(size, size).apply {
             this.x = screenToLayoutX(x, size)
             this.y = screenToLayoutY(y, size)
+            if (locked) {
+                flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            }
+        }
+        if (locked) {
+            tv.alpha = 0.45f
+            try {
+                windowManager.addView(tv, params)
+                markers.add(tv to params)
+            } catch (_: Exception) {
+            }
+            return
         }
         var ix = 0; var iy = 0; var tx = 0f; var ty = 0f
         tv.setOnTouchListener { _, e ->
@@ -466,7 +493,7 @@ class OverlayService : Service() {
     }
 
     private fun toggleClicking() {
-        ClickEngine.toggle()
+        ClickEngine.toggle(fromOverlay = true)
         if (!expanded) rebuildControl()
     }
 

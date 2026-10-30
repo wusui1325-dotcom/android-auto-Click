@@ -21,24 +21,38 @@ class ClickAccessibilityService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
-        if (instance === this) instance = null
+        if (instance === this) {
+            instance = null
+            // Safety: stop engine if a11y dies mid-run
+            ClickEngine.stop()
+        }
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
-        if (instance === this) instance = null
+        if (instance === this) {
+            instance = null
+            ClickEngine.stop()
+        }
         super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (!ClickEngine.status.value.recording) return
-        if (event.eventType != AccessibilityEvent.TYPE_VIEW_CLICKED) return
+        val type = event.eventType
+        if (type != AccessibilityEvent.TYPE_VIEW_CLICKED &&
+            type != AccessibilityEvent.TYPE_VIEW_LONG_CLICKED
+        ) return
         val node = event.source ?: return
-        val rect = android.graphics.Rect()
-        node.getBoundsInScreen(rect)
-        // AccessibilityNodeInfo.recycle() is deprecated/no-op on modern APIs — do not call.
-        ClickEngine.recordClick(rect.centerX().toFloat(), rect.centerY().toFloat())
+        try {
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            if (rect.isEmpty) return
+            ClickEngine.recordClick(rect.centerX().toFloat(), rect.centerY().toFloat())
+        } finally {
+            // AccessibilityNodeInfo.recycle() deprecated/no-op on modern APIs — do not call.
+        }
     }
 
     override fun onInterrupt() {}

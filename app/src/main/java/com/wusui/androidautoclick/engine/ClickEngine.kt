@@ -32,7 +32,11 @@ object ClickEngine {
     private var currentLoop = 0
     private var consecutiveFails = 0
 
-    fun start(): Boolean {
+    /**
+     * @param fromOverlay when true, enforce a short arm delay so the finger-up
+     * that tapped the floating button cannot cancel the first dispatchGesture.
+     */
+    fun start(fromOverlay: Boolean = false): Boolean {
         if (_status.value.running || _status.value.replaying) return true
         if (_status.value.recording) {
             setError("請先停止錄製再開始執行")
@@ -74,6 +78,7 @@ object ClickEngine {
             remaining = remainingLabel(),
             lastError = ""
         )
+        haptic(true)
         SettingsRepository.appContext?.let {
             ClickNotification.showRunning(it, "執行中")
         }
@@ -82,11 +87,14 @@ object ClickEngine {
             if (cfg.mode == ClickMode.SEQUENCE) playSequenceStep(gen)
             else tick(gen)
         }
-        if (cfg.startDelayMs > 0) main.postDelayed(launch, cfg.startDelayMs) else launch()
+        // Overlay tap finger-up often cancels gesture #1 — arm at least 160ms.
+        val arm = maxOf(cfg.startDelayMs, if (fromOverlay) 160L else 0L)
+        if (arm > 0) main.postDelayed(launch, arm) else launch()
         return true
     }
 
     fun stop() {
+        val wasActive = _status.value.active
         generation++
         dispatcher.reset()
         main.removeCallbacksAndMessages(null)
@@ -98,12 +106,14 @@ object ClickEngine {
                 remaining = remainingLabel()
             )
         }
+        if (wasActive) haptic(false)
         SettingsRepository.appContext?.let { ClickNotification.cancel(it) }
     }
 
-    fun toggle(): Boolean = if (_status.value.running || _status.value.replaying) {
-        stop(); false
-    } else start()
+    fun toggle(fromOverlay: Boolean = false): Boolean =
+        if (_status.value.running || _status.value.replaying) {
+            stop(); false
+        } else start(fromOverlay = fromOverlay)
 
     fun clearError() {
         _status.update { it.copy(lastError = "") }
@@ -348,6 +358,26 @@ object ClickEngine {
     private fun remainingLabel(): String {
         val c = SettingsRepository.config.value.count
         return if (c < 0) "∞" else remaining.coerceAtLeast(0).toString()
+    }
+
+    private fun haptic(start: Boolean) {
+        if (!SettingsRepository.config.value.hapticFeedback) return
+        val ctx = SettingsRepository.appContext ?: return
+        try {
+            val vib = ctx.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                ?: return
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                val effect = android.os.VibrationEffect.createOneShot(
+                    if (start) 28 else 18,
+                    if (start) 80 else 50
+                )
+                vib.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vib.vibrate(if (start) 28 else 18)
+            }
+        } catch (_: Exception) {
+        }
     }
 
     private fun setError(msg: String) {

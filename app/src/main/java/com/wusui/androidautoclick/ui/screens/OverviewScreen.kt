@@ -1,5 +1,6 @@
 package com.wusui.androidautoclick.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,8 +16,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.wusui.androidautoclick.data.SettingsRepository
 import com.wusui.androidautoclick.engine.ClickEngine
+import com.wusui.androidautoclick.service.OverlayService
 import com.wusui.androidautoclick.service.PermissionHelper
 import com.wusui.androidautoclick.ui.AppColors
 import com.wusui.androidautoclick.ui.components.ActionButton
@@ -44,7 +47,7 @@ fun OverviewScreen(a11y: Boolean, overlay: Boolean) {
                 if (!a11y) {
                     SettingsRow(
                         title = "開啟無障礙服務",
-                        subtitle = "系統設定 → 已安裝的服務 → AutoClick。無法自動開啟。",
+                        subtitle = "設定 → 無障礙 → 已安裝的服務 → AutoClick。無法自動開。",
                         trailing = "去開啟",
                         showArrow = true,
                         onClick = { PermissionHelper.openAccessibilitySettings(context) }
@@ -53,7 +56,7 @@ fun OverviewScreen(a11y: Boolean, overlay: Boolean) {
                 if (!overlay) {
                     SettingsRow(
                         title = "開啟懸浮窗權限",
-                        subtitle = "顯示浮動控制與可拖標記。無法自動開啟。",
+                        subtitle = "顯示浮動控制與可拖標記。無法自動開。",
                         trailing = "去開啟",
                         showArrow = true,
                         onClick = { PermissionHelper.openOverlaySettings(context) }
@@ -63,10 +66,32 @@ fun OverviewScreen(a11y: Boolean, overlay: Boolean) {
             Spacer(Modifier.height(12.dp))
         }
 
+        SectionLabel("快捷")
+        SettingsCard {
+            SettingsRow(
+                title = if (OverlayService.isRunning) "懸浮窗已開" else "開啟懸浮窗",
+                subtitle = "短按起停 · 長按選單 · 拖標記改座標",
+                trailing = if (OverlayService.isRunning) "運行中" else "開啟",
+                showArrow = !OverlayService.isRunning,
+                onClick = {
+                    if (!PermissionHelper.canDrawOverlay(context)) {
+                        PermissionHelper.openOverlaySettings(context)
+                        return@SettingsRow
+                    }
+                    if (!OverlayService.isRunning) {
+                        val i = Intent(context, OverlayService::class.java)
+                            .setAction(OverlayService.ACTION_SHOW)
+                        ContextCompat.startForegroundService(context, i)
+                    }
+                }
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
         SectionLabel("狀態")
         SettingsCard {
             SettingsRow("無障礙", trailing = if (a11y) "已開" else "未開")
-            SettingsRow("懸浮窗", trailing = if (overlay) "已開" else "未開")
+            SettingsRow("懸浮窗權限", trailing = if (overlay) "已開" else "未開")
             SettingsRow("模式", trailing = cfg.mode.label())
             SettingsRow("點數", trailing = "${points.size}")
             SettingsRow("序列步驟", trailing = "${steps.size}")
@@ -85,12 +110,13 @@ fun OverviewScreen(a11y: Boolean, overlay: Boolean) {
         if (status.lastError.isNotBlank()) {
             Spacer(Modifier.height(12.dp))
             Text(status.lastError, color = AppColors.danger, fontSize = 13.sp)
+            SettingsRow("清除錯誤", onClick = { ClickEngine.clearError() })
         }
         Spacer(Modifier.height(16.dp))
         ActionButton(
-            label = if (status.running || status.replaying) "停止" else "開始",
+            label = if (status.active) "停止" else "開始",
             onClick = { ClickEngine.toggle() },
-            danger = status.running || status.replaying
+            danger = status.active
         )
         Spacer(Modifier.height(8.dp))
         Text(
