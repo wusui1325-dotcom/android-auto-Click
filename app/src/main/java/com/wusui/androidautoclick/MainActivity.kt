@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private object SettingsColors {
+internal object SettingsColors {
     var isDark by mutableStateOf(true)
 
     val bg: Color get() = if (isDark) Color(0xFF000000) else Color(0xFFF2F2F7)
