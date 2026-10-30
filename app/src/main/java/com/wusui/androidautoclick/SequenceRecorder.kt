@@ -62,10 +62,13 @@ object SequenceRecorder {
         saved[name] = steps.toList()
     }
 
-    fun load(name: String) {
-        saved[name]?.let {
-            steps.clear()
-            steps.addAll(it)
+    fun exportText(): String {
+        return steps.joinToString("\n") { s ->
+            when (s.type) {
+                "click" -> "click ${s.x.toInt()} ${s.y.toInt()} ${s.delayMs}"
+                "wait" -> "wait ${s.delayMs}"
+                else -> s.type
+            }
         }
     }
 

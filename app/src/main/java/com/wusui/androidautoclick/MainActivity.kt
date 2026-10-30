@@ -499,6 +499,10 @@ fun SequenceDetail() {
         SettingsStatusRow("回放目前", if (SequenceRecorder.isReplaying) "回放中" else "") {
             if (SequenceRecorder.isReplaying) SequenceRecorder.stopReplay() else SequenceRecorder.replay()
         }
+        SettingsStatusRow("匯出文字", "") {
+            val text = SequenceRecorder.exportText()
+            android.util.Log.d("AutoClick", text.ifEmpty { "(empty)" })
+        }
         SettingsStatusRow("清空目前", "") {
             SequenceRecorder.clear()
         }
