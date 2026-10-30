@@ -43,11 +43,21 @@ object AppStore {
     private val _deleteMode = MutableStateFlow(false)
     val deleteMode: StateFlow<Boolean> = _deleteMode.asStateFlow()
 
+    /** true = vertical control bar */
+    private val _barVertical = MutableStateFlow(false)
+    val barVertical: StateFlow<Boolean> = _barVertical.asStateFlow()
+
     fun init(context: Context) {
         appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         loadSchemes()
         loadParams()
+        _barVertical.value = prefs?.getBoolean("barVertical", false) ?: false
+    }
+
+    fun setBarVertical(vertical: Boolean) {
+        _barVertical.value = vertical
+        prefs?.edit()?.putBoolean("barVertical", vertical)?.apply()
     }
 
     fun beginSession(type: SessionType) {

@@ -170,6 +170,13 @@ object ClickEngine {
         }
         val item = items[playIndex]
         playIndex++
+        // After last play item, next-cycle wait = last ordered touch node's intervalToNextMs
+        val wrapping = playIndex >= items.size
+        val gapAfter = if (wrapping) {
+            AppStore.orderedNodes().lastOrNull()?.intervalToNextMs ?: item.node.intervalToNextMs
+        } else {
+            item.node.intervalToNextMs
+        }
         _status.update {
             it.copy(
                 currentOrder = item.node.order,
@@ -186,11 +193,11 @@ object ClickEngine {
                     if (gen != generation) return@swipe
                     if (!okResult(ok)) return@swipe
                     bumpAction()
-                    scheduleAfter(gen, item.node.intervalToNextMs)
+                    scheduleAfter(gen, gapAfter)
                 }
             }
             else -> {
-                runClicks(gen, service, item.node, params, 0)
+                runClicks(gen, service, item.node, params, 0, gapAfter)
             }
         }
     }
@@ -200,11 +207,12 @@ object ClickEngine {
         service: android.accessibilityservice.AccessibilityService,
         node: TouchNode,
         params: GlobalParams,
-        done: Int
+        done: Int,
+        gapAfter: Long
     ) {
         if (gen != generation || !_status.value.running) return
         if (done >= node.clickCount.coerceAtLeast(1)) {
-            scheduleAfter(gen, node.intervalToNextMs)
+            scheduleAfter(gen, gapAfter)
             return
         }
         val (x, y) = jitter(node.x, node.y, params)
@@ -214,7 +222,7 @@ object ClickEngine {
             bumpAction()
             // Brief gap between multi-taps on same point
             main.postDelayed({
-                runClicks(gen, service, node, params, done + 1)
+                runClicks(gen, service, node, params, done + 1, gapAfter)
             }, 40L)
         }
     }

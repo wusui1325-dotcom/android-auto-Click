@@ -22,6 +22,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ServiceCompat
@@ -37,9 +38,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
- * Floating control bar + ordered touch markers (alpha 0.75 hollow circles).
+ * Floating control bar (center-drag, H/V) + ordered touch markers (alpha 0.75).
+ * Tap marker = position only / delete; long-press = adjust interval & click count.
  */
 class OverlayService : Service() {
 
@@ -55,6 +58,10 @@ class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private var barView: View? = null
     private var barParams: WindowManager.LayoutParams? = null
+    /** Visual center of the control bar (screen coords). */
+    private var barCenterX = 0f
+    private var barCenterY = 0f
+    private var barCenterInited = false
     private var expanded = true
     private val markers = mutableMapOf<String, Pair<View, WindowManager.LayoutParams>>()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -86,10 +93,13 @@ class OverlayService : Service() {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         startFg()
         observeJob = scope?.launch {
-            launch {
-                combine(AppStore.nodes, AppStore.deleteMode, ClickEngine.status) { _, _, _ -> }
-                    .collect { markersDirty = true; rebuildBarIfNeeded() }
-            }
+            combine(
+                AppStore.nodes,
+                AppStore.deleteMode,
+                AppStore.barVertical,
+                ClickEngine.status
+            ) { _, _, _, _ -> }
+                .collect { markersDirty = true; rebuildBarIfNeeded() }
         }
     }
 
@@ -109,7 +119,11 @@ class OverlayService : Service() {
                 startFg()
                 val typeName = intent?.getStringExtra(EXTRA_TYPE)
                 if (typeName != null && !AppStore.sessionOpen.value) {
-                    val type = try { SessionType.valueOf(typeName) } catch (_: Exception) { SessionType.SINGLE }
+                    val type = try {
+                        SessionType.valueOf(typeName)
+                    } catch (_: Exception) {
+                        SessionType.SINGLE
+                    }
                     AppStore.beginSession(type)
                 }
                 if (!AppStore.sessionOpen.value) {
@@ -145,7 +159,9 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         }
-        return WindowManager.LayoutParams(w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags, PixelFormat.TRANSLUCENT).apply {
+        return WindowManager.LayoutParams(
+            w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags, PixelFormat.TRANSLUCENT
+        ).apply {
             gravity = Gravity.TOP or Gravity.START
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
@@ -182,20 +198,41 @@ class OverlayService : Service() {
     private var lastBarKey = ""
     private fun rebuildBarIfNeeded() {
         val st = ClickEngine.status.value
-        val key = "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}"
+        val key =
+            "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|${AppStore.barVertical.value}"
         if (key != lastBarKey) rebuildBar()
+    }
+
+    private fun applyBarCenter(view: View, params: WindowManager.LayoutParams) {
+        val w = if (view.width > 0) view.width else view.measuredWidth
+        val h = if (view.height > 0) view.height else view.measuredHeight
+        if (w <= 0 || h <= 0) return
+        params.x = (barCenterX - w / 2f).toInt()
+        params.y = (barCenterY - h / 2f).toInt()
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (_: Exception) {
+        }
     }
 
     private fun rebuildBar() {
         val st = ClickEngine.status.value
-        lastBarKey = "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}"
-        val oldX = barParams?.x ?: dp(12)
-        val oldY = barParams?.y ?: dp(140)
+        val vertical = AppStore.barVertical.value
+        lastBarKey =
+            "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|$vertical"
+
+        val (sw, sh) = screenSize()
+        if (!barCenterInited) {
+            barCenterX = dp(12) + dp(120).toFloat()
+            barCenterY = dp(140) + dp(28).toFloat()
+            barCenterInited = true
+        }
+
         barView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
 
         val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
             setPadding(dp(6), dp(6), dp(6), dp(6))
             background = GradientDrawable().apply {
                 cornerRadius = dp(16).toFloat()
@@ -229,7 +266,6 @@ class OverlayService : Service() {
         }
 
         val type = AppStore.sessionType.value
-        // Start/Stop always
         iconBtn(if (st.running) "■" else "▶", if (st.running) "停止" else "開始") {
             ClickEngine.toggle(fromOverlay = true)
             rebuildBar()
@@ -239,13 +275,11 @@ class OverlayService : Service() {
             when (type) {
                 SessionType.MULTI -> {
                     iconBtn("＋", "加點") {
-                        val (w, h) = screenSize()
-                        AppStore.addClickPoint(w / 2f, h / 2f)
+                        AppStore.addClickPoint(sw / 2f, sh / 2f)
                         markersDirty = true
                     }
                     iconBtn("⇄", "拖拽") {
-                        val (w, h) = screenSize()
-                        AppStore.addDragGroup(w * 0.35f, h / 2f, w * 0.65f, h / 2f)
+                        AppStore.addDragGroup(sw * 0.35f, sh / 2f, sw * 0.65f, sh / 2f)
                         markersDirty = true
                     }
                     iconBtn(
@@ -265,12 +299,11 @@ class OverlayService : Service() {
                         markersDirty = true
                     }
                     iconBtn("＋", "加點") {
-                        val (w, h) = screenSize()
-                        AppStore.addClickPoint(w / 2f, h / 2f)
+                        AppStore.addClickPoint(sw / 2f, sh / 2f)
                         markersDirty = true
                     }
                 }
-                SessionType.SINGLE -> { /* no add/delete/record */ }
+                SessionType.SINGLE -> { }
             }
             iconBtn("💾", "保存") { showSaveScheme() }
             iconBtn("📂", "方案") { showUseScheme() }
@@ -288,27 +321,37 @@ class OverlayService : Service() {
 
         iconBtn("✕", "關閉", danger = true) { closeAll() }
 
-        val host: View = if (expanded) {
-            HorizontalScrollView(this).apply {
+        // Expanded: scroll container so many buttons fit; collapsed: bare row (still draggable)
+        val host: View = when {
+            expanded && vertical -> ScrollView(this).apply {
+                isVerticalScrollBarEnabled = false
+                addView(row)
+            }
+            expanded && !vertical -> HorizontalScrollView(this).apply {
                 isHorizontalScrollBarEnabled = false
                 addView(row)
             }
-        } else row
+            else -> row
+        }
 
-        val lp = baseLp(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT).apply {
-            x = oldX; y = oldY
+        val lp = baseLp(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT
+        ).apply {
+            x = (barCenterX - dp(60)).toInt()
+            y = (barCenterY - dp(24)).toInt()
         }
         setupBarDrag(host, lp)
         try {
             windowManager.addView(host, lp)
             barView = host
             barParams = lp
+            host.post { applyBarCenter(host, lp) }
         } catch (_: Exception) {
         }
     }
 
     private fun updatePlayGlyph() {
-        // Force bar rebuild when running state flips while collapsed/expanded
         rebuildBarIfNeeded()
     }
 
@@ -317,21 +360,32 @@ class OverlayService : Service() {
         barView = null
     }
 
+    /** Drag by bar center; works expanded and collapsed. */
     private fun setupBarDrag(view: View, params: WindowManager.LayoutParams) {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
-        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f; var moved = false
+        var cx0 = 0f
+        var cy0 = 0f
+        var tx = 0f
+        var ty = 0f
+        var moved = false
         view.setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; moved = false; true
+                    cx0 = barCenterX
+                    cy0 = barCenterY
+                    tx = e.rawX
+                    ty = e.rawY
+                    moved = false
+                    true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = (e.rawX - tx).toInt()
-                    val dy = (e.rawY - ty).toInt()
-                    if (kotlin.math.abs(dx) > slop || kotlin.math.abs(dy) > slop) {
+                    val dx = e.rawX - tx
+                    val dy = e.rawY - ty
+                    if (abs(dx) > slop || abs(dy) > slop) {
                         moved = true
-                        params.x = ix + dx; params.y = iy + dy
-                        try { windowManager.updateViewLayout(v, params) } catch (_: Exception) {}
+                        barCenterX = cx0 + dx
+                        barCenterY = cy0 + dy
+                        applyBarCenter(v, params)
                     }
                     true
                 }
@@ -351,7 +405,9 @@ class OverlayService : Service() {
             val c = root.getChildAt(i)
             if (!c.isShown) continue
             c.getLocationOnScreen(loc)
-            if (rawX >= loc[0] && rawX < loc[0] + c.width && rawY >= loc[1] && rawY < loc[1] + c.height) {
+            if (rawX >= loc[0] && rawX < loc[0] + c.width &&
+                rawY >= loc[1] && rawY < loc[1] + c.height
+            ) {
                 if (c.hasOnClickListeners()) {
                     c.performClick(); return true
                 }
@@ -370,42 +426,13 @@ class OverlayService : Service() {
 
     private fun refreshMarkers() {
         clearMarkers()
-        AppStore.orderedNodes().forEach { node ->
-            addMarker(node)
-        }
+        AppStore.orderedNodes().forEach { addMarker(it) }
     }
 
     private fun addMarker(node: TouchNode) {
         val size = dp(44)
         val locked = ClickEngine.status.value.running && !AppStore.deleteMode.value
-        val tv = TextView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(size, size)
-            gravity = Gravity.CENTER
-            text = when (node.kind) {
-                NodeKind.DRAG_START -> "↗${node.order}"
-                NodeKind.DRAG_END -> "↙${node.order}"
-                else -> "${node.order}"
-            }
-            setTextColor(Color.parseColor("#FF3B30")) // red number
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            typeface = Typeface.DEFAULT_BOLD
-            // Hollow white circle, black border, overall 75% opacity
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#00FFFFFF")) // transparent fill
-                setStroke(dp(2), Color.BLACK)
-            }
-            // Outer white ring via second stroke illusion: white under black
-            // Use layered: white thicker stroke behind — approximate with white stroke + black inset via padding ring
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.TRANSPARENT)
-                setStroke(dp(3), Color.WHITE)
-            }
-            // Add black inner ring using foreground if API allows — use compound: wrap
-            alpha = MARKER_ALPHA
-        }
-        // Wrap to get white outer + black inner ring
+
         val wrap = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
             background = GradientDrawable().apply {
@@ -442,37 +469,58 @@ class OverlayService : Service() {
         }
 
         if (!locked) {
-            var ix = 0; var iy = 0; var tx = 0f; var ty = 0f; var moved = false
+            val longMs = ViewConfiguration.getLongPressTimeout().toLong()
+            var ix = 0
+            var iy = 0
+            var tx = 0f
+            var ty = 0f
+            var moved = false
+            var longFired = false
+            val longRun = Runnable {
+                longFired = true
+                showNodePopup(node)
+            }
             wrap.setOnTouchListener { _, e ->
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         draggingMarker = true
-                        ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; moved = false; true
+                        ix = params.x; iy = params.y
+                        tx = e.rawX; ty = e.rawY
+                        moved = false
+                        longFired = false
+                        mainHandler.postDelayed(longRun, longMs)
+                        true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (e.rawX - tx).toInt()
                         val dy = (e.rawY - ty).toInt()
-                        if (kotlin.math.abs(dx) > 4 || kotlin.math.abs(dy) > 4) moved = true
-                        params.x = ix + dx; params.y = iy + dy
+                        if (abs(dx) > 4 || abs(dy) > 4) {
+                            if (!moved) mainHandler.removeCallbacks(longRun)
+                            moved = true
+                        }
+                        params.x = ix + dx
+                        params.y = iy + dy
                         try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
-                        val cx = params.x + size / 2f
-                        val cy = params.y + size / 2f + layoutToScreenOffsetY
-                        AppStore.moveNode(node.id, cx, cy)
+                        AppStore.moveNode(
+                            node.id,
+                            params.x + size / 2f,
+                            params.y + size / 2f + layoutToScreenOffsetY
+                        )
                         true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         draggingMarker = false
-                        val cx = params.x + size / 2f
-                        val cy = params.y + size / 2f + layoutToScreenOffsetY
-                        AppStore.moveNode(node.id, cx, cy)
-                        if (!moved) {
-                            if (AppStore.deleteMode.value) {
-                                AppStore.removeNodeOrGroup(node.id)
-                                markersDirty = true
-                                rebuildBar()
-                            } else {
-                                showNodePopup(node)
-                            }
+                        mainHandler.removeCallbacks(longRun)
+                        AppStore.moveNode(
+                            node.id,
+                            params.x + size / 2f,
+                            params.y + size / 2f + layoutToScreenOffsetY
+                        )
+                        // Tap: delete-mode only. No adjust popup on short tap.
+                        if (!moved && !longFired && AppStore.deleteMode.value) {
+                            AppStore.removeNodeOrGroup(node.id)
+                            markersDirty = true
+                            rebuildBar()
                         }
                         true
                     }
@@ -500,7 +548,7 @@ class OverlayService : Service() {
         }
     }
 
-    // ── Popups (Settings-style overlays) ────────────────────────
+    // ── Popups ─────────────────────────────────────────────────
 
     private fun dismissPopup() {
         popupView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
@@ -535,19 +583,18 @@ class OverlayService : Service() {
         })
         val (sw, sh) = screenSize()
         val lp = baseLp((sw * 0.82f).toInt(), WindowManager.LayoutParams.WRAP_CONTENT, focusable = true).apply {
-            x = ((sw * 0.09f).toInt())
+            x = (sw * 0.09f).toInt()
             y = (sh * 0.22f).toInt()
         }
         try {
             windowManager.addView(card, lp)
             popupView = card
-        } catch (e: Exception) {
-            // Fallback: system dialog (needs activity token — may fail; toast)
+        } catch (_: Exception) {
             toast("無法顯示浮窗：$title")
         }
     }
 
-    private fun fieldRow(label: String, value: String, inputType: Int = InputType.TYPE_CLASS_NUMBER): Pair<LinearLayout, EditText> {
+    private fun fieldRow(label: String, value: String): Pair<LinearLayout, EditText> {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -561,7 +608,7 @@ class OverlayService : Service() {
         })
         val et = EditText(this).apply {
             setText(value)
-            this.inputType = inputType
+            inputType = InputType.TYPE_CLASS_NUMBER
             setTextColor(Color.parseColor("#1D1D1F"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             setBackgroundColor(Color.parseColor("#E5E5EA"))
@@ -574,8 +621,15 @@ class OverlayService : Service() {
 
     private fun showNodePopup(node: TouchNode) {
         val live = AppStore.nodes.value.find { it.id == node.id } ?: node
-        showPanel("觸控點 ${live.order}") {
-            val (r1, etInterval) = fieldRow("與下一序間隔(ms)", live.intervalToNextMs.toString())
+        val ordered = AppStore.orderedNodes()
+        val isLast = ordered.lastOrNull()?.id == live.id
+        val intervalLabel = if (isLast) {
+            "與下次間隔(ms)＝下一輪循環等待"
+        } else {
+            "與下一序間隔(ms)"
+        }
+        showPanel("觸控點 ${live.order}（長按調整）") {
+            val (r1, etInterval) = fieldRow(intervalLabel, live.intervalToNextMs.toString())
             addView(r1)
             val (r2, etClicks) = fieldRow("單次點擊次數", live.clickCount.toString())
             if (live.kind == NodeKind.CLICK) addView(r2)
@@ -587,8 +641,10 @@ class OverlayService : Service() {
                 typeface = Typeface.DEFAULT_BOLD
                 setPadding(0, dp(12), 0, 0)
                 setOnClickListener {
-                    val interval = etInterval.text.toString().toLongOrNull()?.coerceAtLeast(0) ?: live.intervalToNextMs
-                    val clicks = etClicks.text.toString().toIntOrNull()?.coerceAtLeast(1) ?: live.clickCount
+                    val interval = etInterval.text.toString().toLongOrNull()?.coerceAtLeast(0)
+                        ?: live.intervalToNextMs
+                    val clicks = etClicks.text.toString().toIntOrNull()?.coerceAtLeast(1)
+                        ?: live.clickCount
                     AppStore.updateNode(live.id) {
                         it.copy(intervalToNextMs = interval, clickCount = clicks)
                     }
@@ -602,10 +658,19 @@ class OverlayService : Service() {
     private fun showParamsPopup() {
         val p = AppStore.params.value
         showPanel("參數調整") {
-            val (r1, etCycles) = fieldRow("循環次數(空=無限)", if (p.cycleCount < 0) "" else p.cycleCount.toString())
+            val (r1, etCycles) = fieldRow(
+                "循環次數(空=無限)",
+                if (p.cycleCount < 0) "" else p.cycleCount.toString()
+            )
             addView(r1)
             val (r2, etStop) = fieldRow("多久後停止(ms,0=無)", p.stopAfterMs.toString())
             addView(r2)
+            addView(TextView(this@OverlayService).apply {
+                text = "循環間隔＝最後一點「與下次間隔」（無獨立循環間隙）"
+                setTextColor(Color.parseColor("#6E6E73"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setPadding(0, dp(4), 0, dp(8))
+            })
             var jitter = p.jitter
             val jitterTv = TextView(this@OverlayService).apply {
                 text = if (jitter) "點擊抖動：開（防偵測）" else "點擊抖動：關"
@@ -625,7 +690,9 @@ class OverlayService : Service() {
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
                 setPadding(0, dp(8), 0, 0)
                 setOnClickListener {
-                    val cycles = etCycles.text.toString().let { if (it.isBlank()) -1 else it.toIntOrNull() ?: p.cycleCount }
+                    val cycles = etCycles.text.toString().let {
+                        if (it.isBlank()) -1 else it.toIntOrNull() ?: p.cycleCount
+                    }
                     val stop = etStop.text.toString().toLongOrNull()?.coerceAtLeast(0) ?: p.stopAfterMs
                     AppStore.setParams(p.copy(cycleCount = cycles, stopAfterMs = stop, jitter = jitter))
                     dismissPopup()

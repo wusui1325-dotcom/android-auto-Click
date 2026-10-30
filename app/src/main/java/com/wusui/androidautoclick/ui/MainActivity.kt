@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.wusui.androidautoclick.data.AppStore
 import com.wusui.androidautoclick.engine.SessionType
 import com.wusui.androidautoclick.service.OverlayService
 import com.wusui.androidautoclick.service.PermissionHelper
@@ -71,6 +73,7 @@ private fun HomeScreen() {
     var a11y by remember { mutableStateOf(PermissionHelper.isAccessibilityEnabled(context)) }
     var overlay by remember { mutableStateOf(PermissionHelper.canDrawOverlay(context)) }
     var pickType by remember { mutableStateOf(false) }
+    val barVertical by AppStore.barVertical.collectAsState()
     val ready = a11y && overlay
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -101,7 +104,7 @@ private fun HomeScreen() {
             letterSpacing = (-0.02).em
         )
         Spacer(Modifier.height(4.dp))
-        Text("3.0.0 · 懸浮控制", color = AppColors.secondary(), fontSize = 12.sp)
+        Text("3.0.1 · 懸浮控制", color = AppColors.secondary(), fontSize = 12.sp)
         Spacer(Modifier.height(20.dp))
 
         SectionLabel("權限")
@@ -119,6 +122,18 @@ private fun HomeScreen() {
                 trailing = if (overlay) "✓" else "去開啟",
                 showArrow = !overlay,
                 onClick = { if (!overlay) PermissionHelper.openOverlaySettings(context) }
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+
+        SectionLabel("控制列")
+        SettingsCard {
+            SettingsRow(
+                title = "排列方向",
+                subtitle = if (barVertical) "目前：豎排" else "目前：橫排",
+                trailing = if (barVertical) "改橫排" else "改豎排",
+                showArrow = true,
+                onClick = { AppStore.setBarVertical(!barVertical) }
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -184,7 +199,7 @@ private fun HomeScreen() {
         SettingsCard {
             SettingsRow(
                 title = "操作概要",
-                subtitle = "開始後拖動懸浮控制列；觸控點可拖、點開可調間隔／次數；參數／方案在控制列。"
+                subtitle = "控制列以中心拖動（收起亦可）。觸控點短按只定位；長按調間隔／次數。末點「與下次間隔」＝下一輪循環等待。"
             )
         }
     }
