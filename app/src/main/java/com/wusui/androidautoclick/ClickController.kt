@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var logClicks: Boolean = true
+    var warmupClicks: Int = 0 // 前 N 次忽略計數
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -151,7 +151,11 @@ object ClickController {
                     pointIndex = (pointIndex + 1) % usePoints.size
                     currentPointIndex = pointIndex
                 }
-                if (count >= 0) remaining--
+                if (count >= 0 && warmupClicks > 0 && totalClicks <= warmupClicks) {
+                    // 暖機期間不扣次數
+                } else if (count >= 0) {
+                    remaining--
+                }
                 updateRemaining()
                 appContext?.let { ClickNotification.showRunning(it, "剩餘 ${remainingDisplay}") }
 
