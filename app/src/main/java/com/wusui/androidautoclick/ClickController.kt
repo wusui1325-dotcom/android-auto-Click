@@ -172,6 +172,7 @@ object ClickController {
                 if (points.isEmpty()) { stop(); return }
                 val base = if (mode == "多點" && points.size > 1) points.toList() else listOf(points.first())
                 val usePoints = if (reversePoints) base.reversed() else base
+                if (usePoints.isEmpty()) { stop(); return }
                 val idx = if (randomPoint && usePoints.size > 1) kotlin.random.Random.nextInt(usePoints.size) else pointIndex % usePoints.size
                 var (x, y) = usePoints[idx]
                 x = x * scale + offsetX
@@ -238,7 +239,7 @@ object ClickController {
                 }
             }
         }
-        val launch: () -> Unit = { handler.post(runnable!!) }
+        val launch: () -> Unit = { runnable?.let { handler.post(it) } }
         if (startDelayMs > 0) handler.postDelayed(launch, startDelayMs) else launch()
         return true
     }
