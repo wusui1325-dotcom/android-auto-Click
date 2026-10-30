@@ -138,6 +138,8 @@ class FloatingOverlayService : Service() {
     private var longPressHandler = Handler(Looper.getMainLooper())
     private var longPressed = false
 
+    private var lastTap = 0L
+
     private fun setupDrag(container: View, button: View, params: WindowManager.LayoutParams) {
         var initialX = 0
         var initialY = 0
@@ -157,7 +159,6 @@ class FloatingOverlayService : Service() {
                     longPressHandler.postDelayed({
                         if (!moved) {
                             longPressed = true
-                            // 長按：切換錄製
                             if (com.wusui.androidautoclick.SequenceRecorder.isRecording) {
                                 com.wusui.androidautoclick.SequenceRecorder.stop()
                             } else {
@@ -184,7 +185,21 @@ class FloatingOverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     longPressHandler.removeCallbacksAndMessages(null)
-                    if (!moved && !longPressed) button.performClick()
+                    if (!moved && !longPressed) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastTap < 300) {
+                            // 雙擊：回放序列
+                            if (com.wusui.androidautoclick.SequenceRecorder.isReplaying) {
+                                com.wusui.androidautoclick.SequenceRecorder.stopReplay()
+                            } else {
+                                com.wusui.androidautoclick.SequenceRecorder.replay()
+                            }
+                            lastTap = 0
+                        } else {
+                            button.performClick()
+                            lastTap = now
+                        }
+                    }
                     true
                 }
                 else -> false
