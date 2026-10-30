@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var soundOnClick: Boolean = false
+    var maxCps: Int = 20 // 安全上限
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -134,7 +134,8 @@ object ClickController {
                 if (isRunning) {
                     var delay = if (randomInterval) intervalMs + kotlin.random.Random.nextLong(-30, 31) else intervalMs
                     if (antiDetect) delay += kotlin.random.Random.nextLong(0, 80)
-                    handler.postDelayed(this, delay.coerceAtLeast(20))
+                    val minDelay = if (maxCps > 0) 1000L / maxCps else 20L
+                    handler.postDelayed(this, delay.coerceAtLeast(minDelay))
                 }
             }
         }

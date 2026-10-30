@@ -550,6 +550,9 @@ fun ClickDetail(
                 (context as? android.app.Activity)?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
+        CycleRow("CPS 上限", ClickController.maxCps.toString(), listOf(5, 10, 20, 30, 50).map { it.toString() }) { v ->
+            ClickController.maxCps = v.toInt()
+        }
         ToggleRow("點擊音效", ClickController.soundOnClick) {
             ClickController.soundOnClick = it
         }
@@ -707,7 +710,7 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "0.7.0") {}
+        SettingsStatusRow("版本", "0.8.0") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
             SequenceRecorder.stopReplay()
