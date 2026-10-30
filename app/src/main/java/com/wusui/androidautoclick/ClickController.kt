@@ -136,6 +136,8 @@ object ClickController {
         val service = ClickAccessibilityService.instance ?: return false
         isRunning = true
         lastError = ""
+        pointIndex = 0
+        currentPointIndex = 0
         remaining = count
         pointIndex = 0
         startTimeMs = System.currentTimeMillis()
