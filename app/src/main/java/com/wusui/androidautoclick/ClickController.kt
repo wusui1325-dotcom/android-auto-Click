@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var onlyOdd: Boolean = false
+    var reversePoints: Boolean = false // 多點反向
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -137,7 +137,8 @@ object ClickController {
                     if (isRunning) handler.postDelayed(this, intervalMs)
                     return
                 }
-                val usePoints = if (mode == "多點" && points.size > 1) points else listOf(points.first())
+                val base = if (mode == "多點" && points.size > 1) points else listOf(points.first())
+                val usePoints = if (reversePoints) base.reversed() else base
                 var (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
                 x = x * scale + offsetX
                 y = y * scale + offsetY
