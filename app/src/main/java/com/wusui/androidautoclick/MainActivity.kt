@@ -506,6 +506,7 @@ fun ClickDetail(
 
 @Composable
 fun SequenceDetail() {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Spacer(Modifier.height(12.dp))
     DetailTitle("序列")
     Spacer(Modifier.height(16.dp))
@@ -536,6 +537,8 @@ fun SequenceDetail() {
         }
         SettingsStatusRow("匯出文字", "") {
             val text = SequenceRecorder.exportText()
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("sequence", text))
             android.util.Log.d("AutoClick", text.ifEmpty { "(empty)" })
         }
         SettingsStatusRow("上移最後一步", "") {
