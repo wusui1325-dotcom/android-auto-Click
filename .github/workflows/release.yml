@@ -24,15 +24,6 @@ jobs:
         with:
           packages: 'platforms;android-35 build-tools;35.0.0'
 
-      - name: Create release keystore
-        run: |
-          keytool -genkeypair -v \
-            -keystore release.keystore \
-            -alias release \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass android -keypass android \
-            -dname "CN=AutoClick, OU=Dev, O=wusui, L=HK, ST=HK, C=HK"
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
