@@ -1,4 +1,4 @@
-package com.wusui.androidautoclick
+package com.wusui.androidautoclick.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -7,7 +7,13 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.app.NotificationCompat
+import com.wusui.androidautoclick.ui.MainActivity
 
+/**
+ * FGS notifications must be PRIORITY_LOW or higher (platform enforces).
+ * Channels use IMPORTANCE_LOW to stay quiet while meeting the floor.
+ */
 object ClickNotification {
 
     const val CHANNEL_ID = "autoclick"
@@ -19,21 +25,13 @@ object ClickNotification {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         mgr.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                "執行狀態",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
+            NotificationChannel(CHANNEL_ID, "執行狀態", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "自動點擊執行狀態"
                 setShowBadge(false)
             }
         )
         mgr.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_OVERLAY,
-                "懸浮控制",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
+            NotificationChannel(CHANNEL_OVERLAY, "懸浮控制", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "懸浮窗保活通知"
                 setShowBadge(false)
             }
@@ -43,24 +41,20 @@ object ClickNotification {
     fun buildOverlayKeepAlive(context: Context, text: String = "懸浮控制運行中"): Notification {
         ensureChannel(context)
         val launch = PendingIntent.getActivity(
-            context,
-            0,
+            context, 0,
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(context, CHANNEL_OVERLAY)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(context)
-        }
-        return builder
+        return NotificationCompat.Builder(context, CHANNEL_OVERLAY)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentTitle("AutoClick")
             .setContentText(text)
             .setContentIntent(launch)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 
@@ -68,24 +62,18 @@ object ClickNotification {
         if (Build.VERSION.SDK_INT >= 33) {
             if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                return
-            }
+            ) return
         }
         try {
             ensureChannel(context)
             val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val n = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Notification.Builder(context, CHANNEL_ID)
-            } else {
-                @Suppress("DEPRECATION")
-                Notification.Builder(context)
-            }
+            val n = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentTitle("AutoClick")
                 .setContentText(text)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build()
             mgr.notify(NOTIFY_ID, n)
         } catch (_: Exception) {

@@ -18,18 +18,25 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.wusui.androidautoclick.ClickController
-import com.wusui.androidautoclick.ClickNotification
-import com.wusui.androidautoclick.SettingsStore
+import androidx.core.app.ServiceCompat
+import com.wusui.androidautoclick.data.SettingsRepository
+import com.wusui.androidautoclick.engine.ClickEngine
 
 /**
- * 可收放的懸浮控制面板，並在螢幕上顯示可拖拽的觸控點。
- * 視覺對齊個人中心：深灰底、細邊、無霓虹。
- * 以前台服務保活（specialUse）。
+ * Floating control + draggable markers.
+ *
+ * Official contracts followed:
+ * - TYPE_APPLICATION_OVERLAY (API 26+)
+ * - FGS specialUse via ServiceCompat.startForeground + FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+ * - layoutInDisplayCutoutMode ALWAYS so overlay coords can match full screen pixels
+ *   used by GestureDescription (screen pixels)
+ * - setFitInsetsTypes(0) so the window is not fitted away from system bars / cutout
+ * - Marker screen position calibrated with getLocationOnScreen after first layout
  */
-class FloatingOverlayService : Service() {
+class OverlayService : Service() {
 
     companion object {
+        @Volatile
         var isRunning = false
             private set
         const val ACTION_SHOW = "show"
@@ -43,12 +50,10 @@ class FloatingOverlayService : Service() {
     private val markers = mutableListOf<Pair<View, WindowManager.LayoutParams>>()
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val persistHandler = Handler(Looper.getMainLooper())
-    /**
-     * screenY - layoutY for a view's top edge (often status-bar height on OEMs
-     * that ignore FLAG_LAYOUT_IN_SCREEN). Measured after first marker attach.
-     */
+    /** screenY - layoutParams.y for view top edge (status/cutout OEM delta). */
     private var layoutToScreenOffsetY = 0
     private var offsetCalibrated = false
+
     private val refreshRunnable = object : Runnable {
         override fun run() {
             updateCollapsedGlyph()
@@ -66,30 +71,21 @@ class FloatingOverlayService : Service() {
     }
 
     private fun startAsForeground() {
-        val notification = ClickNotification.buildOverlayKeepAlive(this, "懸浮控制運行中")
-        try {
-            if (Build.VERSION.SDK_INT >= 34) {
-                startForeground(
-                    ClickNotification.OVERLAY_NOTIFY_ID,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                )
-            } else {
-                startForeground(ClickNotification.OVERLAY_NOTIFY_ID, notification)
-            }
-        } catch (_: Exception) {
-            try {
-                startForeground(ClickNotification.OVERLAY_NOTIFY_ID, notification)
-            } catch (_: Exception) {
-            }
-        }
+        val notification = ClickNotification.buildOverlayKeepAlive(this)
+        // Official: ServiceCompat.startForeground with typed FGS (core 1.12+)
+        ServiceCompat.startForeground(
+            this,
+            ClickNotification.OVERLAY_NOTIFY_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_HIDE -> {
                 removeAll()
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
             else -> {
@@ -100,18 +96,38 @@ class FloatingOverlayService : Service() {
         return START_STICKY
     }
 
-    private fun overlayFlags(): Int =
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+    private fun baseOverlayParams(width: Int, height: Int): WindowManager.LayoutParams {
+        return WindowManager.LayoutParams(
+            width,
+            height,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            // Floating overlay needs full-screen pixel space so marker centers == gesture coords
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // ALWAYS is preferred for cutout-edge overlays when available (API 30+)
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Do not fit away from system bars — keep layout origin aligned to screen
+                setFitInsetsTypes(0)
+            }
+        }
+    }
 
     private fun screenToLayoutX(screenX: Float, size: Int): Int = (screenX - size / 2f).toInt()
-
     private fun screenToLayoutY(screenY: Float, size: Int): Int =
         (screenY - size / 2f - layoutToScreenOffsetY).toInt()
-
     private fun layoutToScreenX(layoutX: Int, size: Int): Float = layoutX + size / 2f
-
     private fun layoutToScreenY(layoutY: Int, size: Int): Float =
         layoutY + size / 2f + layoutToScreenOffsetY
 
@@ -123,10 +139,21 @@ class FloatingOverlayService : Service() {
                 view.getLocationOnScreen(loc)
                 layoutToScreenOffsetY = loc[1] - params.y
                 offsetCalibrated = true
-                // Re-place markers once offset known so first paint isn't skewed
                 refreshMarkers()
             } catch (_: Exception) {
             }
+        }
+    }
+
+    /** Current screen size in pixels (WindowMetrics on R+, else DisplayMetrics). */
+    fun screenSize(): Pair<Int, Int> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            bounds.width() to bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            val d = resources.displayMetrics
+            d.widthPixels to d.heightPixels
         }
     }
 
@@ -136,7 +163,7 @@ class FloatingOverlayService : Service() {
             return
         }
         if (!android.provider.Settings.canDrawOverlays(this)) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
         }
@@ -149,14 +176,10 @@ class FloatingOverlayService : Service() {
     private fun rebuildControl() {
         controlView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
         val container = if (expanded) buildExpanded() else buildCollapsed()
-        val params = WindowManager.LayoutParams(
+        val params = baseOverlayParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            overlayFlags(),
-            PixelFormat.TRANSLUCENT
+            WindowManager.LayoutParams.WRAP_CONTENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
             x = controlParams?.x ?: dp(16)
             y = controlParams?.y ?: dp(120)
         }
@@ -192,11 +215,8 @@ class FloatingOverlayService : Service() {
     }
 
     private fun glyph(): String {
-        val base = if (ClickController.isRunning) "■" else "▶"
-        return if (ClickController.showCoordsOnOverlay && ClickController.points.isNotEmpty()) {
-            val p = ClickController.points.first()
-            "$base\n${p.first.toInt()}"
-        } else base
+        val st = ClickEngine.status.value
+        return if (st.running || st.replaying) "■" else "▶"
     }
 
     private fun updateCollapsedGlyph() {
@@ -218,31 +238,31 @@ class FloatingOverlayService : Service() {
             }
         }
         fun addBtn(label: String, action: () -> Unit) {
-            val b = TextView(this).apply {
+            col.addView(TextView(this).apply {
                 text = label
                 setTextColor(Color.parseColor("#F5F5F7"))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
                 setPadding(dp(12), dp(10), dp(12), dp(10))
                 setOnClickListener { action() }
-            }
-            col.addView(b)
+            })
         }
-        addBtn(if (ClickController.isRunning) "停止" else "開始") {
+        val st = ClickEngine.status.value
+        addBtn(if (st.running || st.replaying) "停止" else "開始") {
             toggleClicking()
             rebuildControl()
         }
         addBtn("新增點") {
-            val dm = resources.displayMetrics
-            ClickController.addPoint(dm.widthPixels / 2f, dm.heightPixels / 2f)
+            val (w, h) = screenSize()
+            SettingsRepository.addPoint(w / 2f, h / 2f)
             refreshMarkers()
         }
         addBtn("刪除最後") {
-            ClickController.removeLastPoint()
+            SettingsRepository.removeLastPoint()
             refreshMarkers()
         }
-        addBtn(if (ClickController.showMarkers) "隱藏標記" else "顯示標記") {
-            ClickController.showMarkers = !ClickController.showMarkers
-            SettingsStore.save()
+        val show = SettingsRepository.config.value.showMarkers
+        addBtn(if (show) "隱藏標記" else "顯示標記") {
+            SettingsRepository.updateConfig { it.copy(showMarkers = !it.showMarkers) }
             refreshMarkers()
             rebuildControl()
         }
@@ -256,19 +276,17 @@ class FloatingOverlayService : Service() {
     private fun refreshMarkers() {
         markers.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
         markers.clear()
-        if (!ClickController.showMarkers) return
-        ClickController.points.forEachIndexed { i, (x, y) ->
-            addMarker(x, y, "${i + 1}") { nx, ny ->
-                if (i < ClickController.points.size) {
-                    ClickController.points[i] = nx to ny
-                }
+        if (!SettingsRepository.config.value.showMarkers) return
+        SettingsRepository.points.value.forEachIndexed { i, p ->
+            addMarker(p.x, p.y, "${i + 1}") { nx, ny ->
+                SettingsRepository.updatePoint(i, nx, ny)
             }
         }
     }
 
     private fun schedulePersist() {
         persistHandler.removeCallbacksAndMessages(null)
-        persistHandler.postDelayed({ SettingsStore.savePoints() }, 300)
+        persistHandler.postDelayed({ /* updatePoint already persists */ }, 300)
     }
 
     private fun addMarker(x: Float, y: Float, label: String, onMove: (Float, Float) -> Unit) {
@@ -285,22 +303,13 @@ class FloatingOverlayService : Service() {
                 setStroke(dp(1), Color.parseColor("#8E8E93"))
             }
         }
-        val params = WindowManager.LayoutParams(
-            size, size,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            overlayFlags(),
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
+        val params = baseOverlayParams(size, size).apply {
             this.x = screenToLayoutX(x, size)
             this.y = screenToLayoutY(y, size)
         }
-        var ix = 0
-        var iy = 0
-        var tx = 0f
-        var ty = 0f
+        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f
         tv.setOnTouchListener { _, e ->
-            when (e.action) {
+            when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; true
                 }
@@ -308,7 +317,7 @@ class FloatingOverlayService : Service() {
                     params.x = ix + (e.rawX - tx).toInt()
                     params.y = iy + (e.rawY - ty).toInt()
                     try { windowManager.updateViewLayout(tv, params) } catch (_: Exception) {}
-                    // rawX/rawY are absolute screen coords — what gestures need
+                    // rawX/rawY are absolute screen coords — same space as GestureDescription
                     onMove(e.rawX, e.rawY)
                     schedulePersist()
                     true
@@ -330,13 +339,9 @@ class FloatingOverlayService : Service() {
     }
 
     private fun setupDrag(view: View, params: WindowManager.LayoutParams) {
-        var ix = 0
-        var iy = 0
-        var tx = 0f
-        var ty = 0f
-        var moved = false
+        var ix = 0; var iy = 0; var tx = 0f; var ty = 0f; var moved = false
         view.setOnTouchListener { _, e ->
-            when (e.action) {
+            when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     ix = params.x; iy = params.y; tx = e.rawX; ty = e.rawY; moved = false; true
                 }
@@ -356,7 +361,7 @@ class FloatingOverlayService : Service() {
     }
 
     private fun toggleClicking() {
-        if (ClickController.isRunning) ClickController.stop() else ClickController.start()
+        ClickEngine.toggle()
         if (!expanded) rebuildControl()
     }
 

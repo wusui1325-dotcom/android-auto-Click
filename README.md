@@ -1,37 +1,36 @@
-# android-auto-Click
+# AutoClick 2.0
 
-極簡、免廣告的 Android 自動點擊／連點器。UI 採 iOS Settings 式黑白平面（與 Wusper 個人中心同款語彙）。
+免廣告、最簡潔的 Android 自動點擊／連點器。UI 採 iOS Settings 黑白平面風格。
 
-## 現況（1.6.2）
+## 功能
 
-已可用：
+- **單點／多點／相鄰滑動／序列回放**
+- 間隔、次數（可無限）、按壓時長、啟動延遲、座標／間隔抖動
+- 懸浮窗：拖曳、單擊起停、長按選單、可拖標記點（異形屏／cutout 校正）
+- 序列：真實時間戳錄製＋視覺編輯（增刪改排序延遲）＋命名持久化
+- 重開 App 後設定／點／序列全部保留
+- 無障礙未開時開始會明確報錯
 
-- **連點引擎**：手勢完成 callback 後才發下一發（串行，不 burst 漏點）
-- **模式**：單點／多點／滑動（相鄰點間 swipe）
-- **設定持久化**：間隔、次數、時長、模式、座標、常用點、序列、主題等
-- **懸浮窗**：前台服務保活、可拖曳面板與標記點、顯示座標開關
-- **序列**：錄製（真實步間延遲）、回放、匯入／匯出文字
-- **序列視覺編輯**：逐步列出點／滑／等待＋座標＋延遲；可改延遲、上移／下移、複製、刪除；變更即寫回 `SettingsStore`
-- **Settings 風 UI**：`#000` / `#f5f5f7` / `#1c1c1e`，灰階開關，無霓虹／無毛玻璃／無系統藍 CTA
-
-已知限制：
-
-- **遊戲自繪錄製**：無障礙只能收到系統／原生控件的 `VIEW_CLICKED`。Unity／Unreal／OpenGL／自繪 Canvas 遊戲畫面通常**錄不到**觸控。請改用手動「加入點擊／滑動」、螢幕標記點，或匯入文字序列。
-- 標記點在部分全面屏／異形屏可能有輕微座標偏移（仍可持續微調）。
-- 進階開關（鏡像、漸慢、雙擊等）執行期生效；多數已接引擎，少數未全部寫入 SharedPreferences（重開可能回預設）。
-
-## 簽名金鑰
-
-`release.keystore` **不進公開倉**（已 gitignore）。本機／CI 從 Google Drive 資料夾 **`android-auto-Click-secrets`** 取得，寫入 `local.properties`：
+## 架構（2.0 重構）
 
 ```
-storeFile=../release.keystore
-storePassword=…
-keyAlias=release
-keyPassword=…
+engine/   ClickEngine · GestureDispatcher（嚴格串行）· Models
+data/     SettingsRepository（StateFlow 單一真相來源）
+service/  ClickAccessibilityService · OverlayService（真 FGS）· 權限／通知
+ui/       Compose Settings 風單 Activity（總覽／點擊／序列／懸浮／權限／關於）
 ```
 
-CI secrets：`KEYSTORE_BASE64`、`STORE_PASSWORD`、`KEY_PASSWORD`、`KEY_ALIAS`。
+## 平台契約（依官方文件）
+
+- **Gesture**：`canPerformGestures` + `dispatchGesture`；座標為螢幕像素；點擊時長 ≥ `ViewConfiguration.getTapTimeout()`；上限 `GestureDescription.getMaxGestureDuration()`；嚴格等 `GestureResultCallback` 再下一筆
+- **Overlay**：`TYPE_APPLICATION_OVERLAY`；`layoutInDisplayCutoutMode=ALWAYS`；`setFitInsetsTypes(0)`；標記用 `getLocationOnScreen`／`rawX/Y` 對齊手勢座標系
+- **FGS**：`FOREGROUND_SERVICE_SPECIAL_USE` + manifest `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`；`ServiceCompat.startForeground(..., SPECIAL_USE)`；通知 `PRIORITY_LOW+`
+- **Compose**：`enableEdgeToEdge()`；勿設 `statusBarColor`（Android 15+ 失效）；`WindowInsetsController` 調圖示對比；內容 `WindowInsets.safeDrawing`
+
+## 已知限制
+
+- 序列錄製依賴無障礙 `TYPE_VIEW_CLICKED`；遊戲自繪 View 通常錄不到，請用懸浮標記手動建步驟。
+- 需使用者手動開啟無障礙與懸浮窗權限。
 
 ## 建置
 
@@ -39,8 +38,8 @@ CI secrets：`KEYSTORE_BASE64`、`STORE_PASSWORD`、`KEY_PASSWORD`、`KEY_ALIAS`
 ./gradlew assembleRelease
 ```
 
-Push `main` 會觸發 GitHub Actions 簽 release APK 並開 GitHub Release。
+簽名金鑰放 CI secrets／本機 `local.properties`（見 Drive `android-auto-Click-secrets`）。`*.keystore` 不進 git。
 
-## 授權
+## 版本
 
-MIT License
+**2.0.0**（versionCode 20）— 功能全重做、邏輯全重構。
