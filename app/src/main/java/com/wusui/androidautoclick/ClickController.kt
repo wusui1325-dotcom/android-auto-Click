@@ -3,6 +3,7 @@ package com.wusui.androidautoclick
 import com.wusui.androidautoclick.service.ClickAccessibilityService
 import android.os.Handler
 import android.os.Looper
+import android.content.Context
 
 /**
  * 全域點擊控制器。
@@ -10,10 +11,26 @@ import android.os.Looper
  */
 object ClickController {
 
+    var appContext: Context? = null
+    var intervalMs: Long = 200
     var antiDetect: Boolean = false
+    var randomOffset: Boolean = false
+    var randomInterval: Boolean = false
+    var mode: String = "單點"
     var durationMs: Long = 50
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
+
+    var isRunning: Boolean = false
+        private set
+    var remainingDisplay: String = ""
+        private set
+    var currentPointIndex: Int = 0
+        private set
+
+    fun attach(context: Context) {
+        appContext = context.applicationContext
+    }
 
     fun addPoint(x: Float, y: Float) {
         points.add(x to y)
@@ -49,6 +66,7 @@ object ClickController {
         pointIndex = 0
         updateRemaining()
         addLog("開始")
+        appContext?.let { ClickNotification.showRunning(it, "執行中") }
 
         runnable = object : Runnable {
             override fun run() {
@@ -89,6 +107,7 @@ object ClickController {
         isRunning = false
         runnable?.let { handler.removeCallbacks(it) }
         runnable = null
+        appContext?.let { ClickNotification.cancel(it) }
     }
 
     fun toggle(): Boolean {

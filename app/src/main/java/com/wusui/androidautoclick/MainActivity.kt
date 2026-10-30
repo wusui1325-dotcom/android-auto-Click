@@ -99,6 +99,7 @@ fun AppShell() {
 
     // 初始化控制器預設值
     LaunchedEffect(Unit) {
+        ClickController.attach(context)
         ClickController.intervalMs = interval.toLong()
         ClickController.durationMs = duration.toLong()
         ClickController.count = if (count == "無限") -1 else count.toIntOrNull() ?: -1
