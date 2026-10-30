@@ -50,10 +50,8 @@ object ClickController {
         points.lastOrNull()?.let { favoritePoints.add(it) }
     }
 
-    fun loadFavorite(index: Int) {
-        favoritePoints.getOrNull(index)?.let {
-            if (points.isEmpty()) points.add(it) else points[points.lastIndex] = it
-        }
+    fun clearFavorites() {
+        favoritePoints.clear()
     }
         intervalMs = 200
         durationMs = 50

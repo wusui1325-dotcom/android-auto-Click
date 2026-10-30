@@ -530,6 +530,9 @@ fun ClickDetail(
         SettingsStatusRow("儲存為常用", "") {
             ClickController.saveFavorite()
         }
+        SettingsStatusRow("清空常用", "") {
+            ClickController.clearFavorites()
+        }
         SettingsStatusRow("複製最後點", "") {
             ClickController.duplicateLastPoint()
         }
