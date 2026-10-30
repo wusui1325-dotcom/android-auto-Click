@@ -246,6 +246,7 @@ object ClickController {
     fun stop() {
         if (isRunning) addLog("停止")
         isRunning = false
+        isPaused = false
         runnable?.let { handler.removeCallbacks(it) }
         runnable = null
         if (endBeep) {
