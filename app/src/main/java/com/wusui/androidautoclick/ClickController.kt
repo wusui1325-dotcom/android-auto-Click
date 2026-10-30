@@ -218,7 +218,7 @@ object ClickController {
                     } else pointIndex = (pointIndex + 1) % usePoints.size
                     currentPointIndex = pointIndex.coerceIn(0, usePoints.lastIndex)
                 }
-                if (count >= 0 && !(warmupClicks > 0 && totalClicks <= warmupClicks)) remaining--
+                if (count >= 0 && !(warmupClicks > 0 && totalClicks <= warmupClicks)) remaining = (remaining - 1).coerceAtLeast(0)
                 updateRemaining()
 
                 val now = System.currentTimeMillis()
