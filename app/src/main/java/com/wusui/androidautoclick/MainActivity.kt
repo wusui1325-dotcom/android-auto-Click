@@ -591,6 +591,14 @@ fun ClickDetail(
         SettingsStatusRow("清空常用", "") {
             ClickController.clearFavorites()
         }
+        SettingsStatusRow("從剪貼簿貼上點", "") {
+            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val text = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: return@SettingsStatusRow
+            val parts = text.split(",", " ")
+            val x = parts.getOrNull(0)?.toFloatOrNull() ?: return@SettingsStatusRow
+            val y = parts.getOrNull(1)?.toFloatOrNull() ?: return@SettingsStatusRow
+            ClickController.addPoint(x, y)
+        }
         SettingsStatusRow("複製座標", "") {
             val p = ClickController.points.lastOrNull() ?: return@SettingsStatusRow
             val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
