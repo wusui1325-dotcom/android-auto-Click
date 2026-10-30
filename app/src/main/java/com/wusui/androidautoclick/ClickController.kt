@@ -12,7 +12,8 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var mirrorY: Boolean = false
+    var offsetX: Float = 0f
+    var offsetY: Float = 0f
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -126,6 +127,8 @@ object ClickController {
 
                 val usePoints = if (mode == "多點" && points.size > 1) points else listOf(points.first())
                 var (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
+                x += offsetX
+                y += offsetY
                 if (mirrorX) {
                     val dm = appContext?.resources?.displayMetrics
                     if (dm != null) x = dm.widthPixels - x

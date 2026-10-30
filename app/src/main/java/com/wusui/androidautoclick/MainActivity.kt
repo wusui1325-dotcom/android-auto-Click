@@ -516,6 +516,12 @@ fun ClickDetail(
         SettingsStatusRow("點 1", pointsText(0)) {}
         SettingsStatusRow("點 2", pointsText(1)) {}
         SettingsStatusRow("點 3", pointsText(2)) {}
+        CycleRow("全域偏移 X", ClickController.offsetX.toInt().toString(), listOf(-50, -20, 0, 20, 50).map { it.toString() }) { v ->
+            ClickController.offsetX = v.toFloat()
+        }
+        CycleRow("全域偏移 Y", ClickController.offsetY.toInt().toString(), listOf(-50, -20, 0, 20, 50).map { it.toString() }) { v ->
+            ClickController.offsetY = v.toFloat()
+        }
         CycleRow("最後點 X", ClickController.points.lastOrNull()?.first?.toInt()?.toString() ?: "540",
             listOf(200, 400, 540, 700, 900).map { it.toString() }) { v ->
             val y = ClickController.points.lastOrNull()?.second ?: 960f
