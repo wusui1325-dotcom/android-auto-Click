@@ -31,6 +31,7 @@ import com.wusui.androidautoclick.engine.ClickEngine
 import com.wusui.androidautoclick.engine.NodeKind
 import com.wusui.androidautoclick.engine.SessionType
 import com.wusui.androidautoclick.engine.TouchNode
+import com.wusui.androidautoclick.ui.FlatIconView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -97,8 +98,9 @@ class OverlayService : Service() {
                 AppStore.nodes,
                 AppStore.deleteMode,
                 AppStore.barVertical,
+                AppStore.barSize,
                 ClickEngine.status
-            ) { _, _, _, _ -> }
+            ) { _, _, _, _, _ -> }
                 .collect { markersDirty = true; rebuildBarIfNeeded() }
         }
     }
@@ -199,7 +201,7 @@ class OverlayService : Service() {
     private fun rebuildBarIfNeeded() {
         val st = ClickEngine.status.value
         val key =
-            "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|${AppStore.barVertical.value}"
+            "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|${AppStore.barVertical.value}|${AppStore.barSize.value}"
         if (key != lastBarKey) rebuildBar()
     }
 
@@ -218,8 +220,12 @@ class OverlayService : Service() {
     private fun rebuildBar() {
         val st = ClickEngine.status.value
         val vertical = AppStore.barVertical.value
+        val sizeIdx = AppStore.barSize.value
         lastBarKey =
-            "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|$vertical"
+            "${expanded}|${AppStore.sessionType.value}|${st.running}|${st.recording}|${AppStore.deleteMode.value}|$vertical|$sizeIdx"
+        // 0小 1中 2大 → scale
+        val scale = when (sizeIdx) { 0 -> 0.82f; 2 -> 1.22f; else -> 1f }
+        fun sdp(v: Int) = (dp(v) * scale).toInt().coerceAtLeast(1)
 
         val (sw, sh) = screenSize()
         if (!barCenterInited) {
@@ -233,7 +239,7 @@ class OverlayService : Service() {
         val row = LinearLayout(this).apply {
             orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(6), dp(6), dp(6), dp(6))
+            setPadding(sdp(6), sdp(6), sdp(6), sdp(6))
             background = GradientDrawable().apply {
                 cornerRadius = dp(16).toFloat()
                 setColor(Color.parseColor("#F2F2F7"))
@@ -242,31 +248,33 @@ class OverlayService : Service() {
             alpha = 0.96f
         }
 
-        fun iconBtn(symbol: String, label: String, danger: Boolean = false, onClick: () -> Unit) {
+        fun iconBtn(kind: FlatIconView.Kind, label: String, danger: Boolean = false, onClick: () -> Unit) {
             val col = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setPadding(sdp(8), sdp(4), sdp(8), sdp(4))
                 setOnClickListener { onClick() }
             }
-            col.addView(TextView(this).apply {
-                text = symbol
-                gravity = Gravity.CENTER
-                setTextColor(if (danger) Color.parseColor("#C4A090") else Color.parseColor("#1D1D1F"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-                typeface = Typeface.DEFAULT_BOLD
+            val iconSize = sdp(22)
+            col.addView(FlatIconView(this).apply {
+                this.kind = kind
+                ink = if (danger) Color.parseColor("#8A8A8E") else Color.parseColor("#1D1D1F")
+                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
             })
             col.addView(TextView(this).apply {
                 text = label
                 gravity = Gravity.CENTER
                 setTextColor(Color.parseColor("#6E6E73"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, sdp(9).toFloat().coerceAtLeast(8f))
             })
             row.addView(col)
         }
 
         val type = AppStore.sessionType.value
-        iconBtn(if (st.running) "■" else "▶", if (st.running) "停止" else "開始") {
+        iconBtn(
+            if (st.running) FlatIconView.Kind.STOP else FlatIconView.Kind.PLAY,
+            if (st.running) "停止" else "開始"
+        ) {
             ClickEngine.toggle(fromOverlay = true)
             rebuildBar()
         }
@@ -274,16 +282,16 @@ class OverlayService : Service() {
         if (expanded) {
             when (type) {
                 SessionType.MULTI -> {
-                    iconBtn("＋", "加點") {
+                    iconBtn(FlatIconView.Kind.PLUS, "加點") {
                         AppStore.addClickPoint(sw / 2f, sh / 2f)
                         markersDirty = true
                     }
-                    iconBtn("⇄", "拖拽") {
+                    iconBtn(FlatIconView.Kind.DRAG, "拖拽") {
                         AppStore.addDragGroup(sw * 0.35f, sh / 2f, sw * 0.65f, sh / 2f)
                         markersDirty = true
                     }
                     iconBtn(
-                        if (AppStore.deleteMode.value) "⌫!" else "⌫",
+                        FlatIconView.Kind.DELETE,
                         if (AppStore.deleteMode.value) "選刪" else "刪除",
                         danger = AppStore.deleteMode.value
                     ) {
@@ -293,33 +301,36 @@ class OverlayService : Service() {
                     }
                 }
                 SessionType.RECORD -> {
-                    iconBtn(if (st.recording) "⏺" else "●", if (st.recording) "停錄" else "錄製") {
+                    iconBtn(
+                        if (st.recording) FlatIconView.Kind.RECORD_ON else FlatIconView.Kind.RECORD,
+                        if (st.recording) "停錄" else "錄製"
+                    ) {
                         ClickEngine.toggleRecording()
                         rebuildBar()
                         markersDirty = true
                     }
-                    iconBtn("＋", "加點") {
+                    iconBtn(FlatIconView.Kind.PLUS, "加點") {
                         AppStore.addClickPoint(sw / 2f, sh / 2f)
                         markersDirty = true
                     }
                 }
                 SessionType.SINGLE -> { }
             }
-            iconBtn("💾", "保存") { showSaveScheme() }
-            iconBtn("📂", "方案") { showUseScheme() }
-            iconBtn("⚙", "參數") { showParamsPopup() }
-            iconBtn("▴", "收起") {
+            iconBtn(FlatIconView.Kind.SAVE, "保存") { showSaveScheme() }
+            iconBtn(FlatIconView.Kind.SCHEME, "方案") { showUseScheme() }
+            iconBtn(FlatIconView.Kind.PARAMS, "參數") { showParamsPopup() }
+            iconBtn(FlatIconView.Kind.COLLAPSE, "收起") {
                 expanded = false
                 rebuildBar()
             }
         } else {
-            iconBtn("▾", "展開") {
+            iconBtn(FlatIconView.Kind.EXPAND, "展開") {
                 expanded = true
                 rebuildBar()
             }
         }
 
-        iconBtn("✕", "關閉", danger = true) { closeAll() }
+        iconBtn(FlatIconView.Kind.CLOSE, "關閉", danger = true) { closeAll() }
 
         // Expanded: scroll container so many buttons fit; collapsed: bare row (still draggable)
         val host: View = when {
@@ -447,8 +458,8 @@ class OverlayService : Service() {
                 }
                 gravity = Gravity.CENTER
                 text = when (node.kind) {
-                    NodeKind.DRAG_START -> "↗${node.order}"
-                    NodeKind.DRAG_END -> "↙${node.order}"
+                    NodeKind.DRAG_START -> "↑${node.order}"
+                    NodeKind.DRAG_END -> "↓${node.order}"
                     else -> "${node.order}"
                 }
                 setTextColor(Color.parseColor("#FF3B30"))

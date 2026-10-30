@@ -74,6 +74,7 @@ private fun HomeScreen() {
     var overlay by remember { mutableStateOf(PermissionHelper.canDrawOverlay(context)) }
     var pickType by remember { mutableStateOf(false) }
     val barVertical by AppStore.barVertical.collectAsState()
+    val barSize by AppStore.barSize.collectAsState()
     val ready = a11y && overlay
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -134,6 +135,14 @@ private fun HomeScreen() {
                 trailing = if (barVertical) "改橫排" else "改豎排",
                 showArrow = true,
                 onClick = { AppStore.setBarVertical(!barVertical) }
+            )
+            val sizeLabel = when (barSize) { 0 -> "小"; 2 -> "大"; else -> "中" }
+            SettingsRow(
+                title = "控制列大小",
+                subtitle = "目前：$sizeLabel（點擊循環：小→中→大）",
+                trailing = sizeLabel,
+                showArrow = true,
+                onClick = { AppStore.setBarSize((barSize + 1) % 3) }
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -199,7 +208,7 @@ private fun HomeScreen() {
         SettingsCard {
             SettingsRow(
                 title = "操作概要",
-                subtitle = "控制列以中心拖動（收起亦可）。觸控點短按只定位；長按調間隔／次數。末點「與下次間隔」＝下一輪循環等待。"
+                subtitle = "控制列黑白平面圖示，可調橫豎／大小、以中心拖動（收起亦可）。觸控點短按定位；長按調間隔／次數。末點間隔＝下一輪循環等待。"
             )
         }
     }

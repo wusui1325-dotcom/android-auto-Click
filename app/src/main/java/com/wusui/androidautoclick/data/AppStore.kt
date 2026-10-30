@@ -53,11 +53,22 @@ object AppStore {
         loadSchemes()
         loadParams()
         _barVertical.value = prefs?.getBoolean("barVertical", false) ?: false
+        _barSize.value = (prefs?.getInt("barSize", 1) ?: 1).coerceIn(0, 2)
     }
 
     fun setBarVertical(vertical: Boolean) {
         _barVertical.value = vertical
         prefs?.edit()?.putBoolean("barVertical", vertical)?.apply()
+    }
+
+    /** 0=小 1=中 2=大 */
+    private val _barSize = MutableStateFlow(1)
+    val barSize: StateFlow<Int> = _barSize.asStateFlow()
+
+    fun setBarSize(size: Int) {
+        val s = size.coerceIn(0, 2)
+        _barSize.value = s
+        prefs?.edit()?.putInt("barSize", s)?.apply()
     }
 
     fun beginSession(type: SessionType) {
