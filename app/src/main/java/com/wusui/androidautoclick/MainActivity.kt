@@ -516,6 +516,9 @@ fun ClickDetail(
         SettingsStatusRow("點 1", pointsText(0)) {}
         SettingsStatusRow("點 2", pointsText(1)) {}
         SettingsStatusRow("點 3", pointsText(2)) {}
+        CycleRow("縮放", ClickController.scale.toString(), listOf("0.8", "0.9", "1.0", "1.1", "1.2")) { v ->
+            ClickController.scale = v.toFloat()
+        }
         CycleRow("全域偏移 X", ClickController.offsetX.toInt().toString(), listOf(-50, -20, 0, 20, 50).map { it.toString() }) { v ->
             ClickController.offsetX = v.toFloat()
         }
