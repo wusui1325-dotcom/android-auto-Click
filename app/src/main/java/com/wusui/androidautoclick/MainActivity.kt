@@ -428,6 +428,7 @@ fun ClickDetail(
     randomInterval: Boolean, onRandomInterval: (Boolean) -> Unit,
     antiDetect: Boolean, onAntiDetect: (Boolean) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Spacer(Modifier.height(12.dp))
     DetailTitle("點擊")
     Spacer(Modifier.height(16.dp))
