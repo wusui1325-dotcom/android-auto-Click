@@ -21,7 +21,7 @@ object ClickController {
     var count: Int = -1 // -1 = 無限
     var points: MutableList<Pair<Float, Float>> = mutableListOf(540f to 960f)
 
-    var startTimeMs: Long = 0
+    var totalClicks: Int = 0
         private set
 
     fun elapsedSec(): Long = if (isRunning) (System.currentTimeMillis() - startTimeMs) / 1000 else 0
@@ -95,6 +95,7 @@ object ClickController {
                     y += (kotlin.random.Random.nextInt(-8, 9)).toFloat()
                 }
                 service.performClick(x, y, durationMs)
+                totalClicks++
                 addLog("點擊 ${x.toInt()},${y.toInt()}")
 
                 if (usePoints.size > 1) {

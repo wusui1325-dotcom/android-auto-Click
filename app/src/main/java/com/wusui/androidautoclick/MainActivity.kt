@@ -451,7 +451,11 @@ fun ClickDetail(
         ) {
             ClickController.toggle()
         }
+        SettingsStatusRow("總點擊", ClickController.totalClicks.toString()) {}
         SettingsStatusRow("單次測試", "") {
+            val p = ClickController.points.firstOrNull() ?: return@SettingsStatusRow
+            ClickAccessibilityService.instance?.performClick(p.first, p.second, ClickController.durationMs)
+        }
             val p = ClickController.points.firstOrNull() ?: return@SettingsStatusRow
             ClickAccessibilityService.instance?.performClick(p.first, p.second, ClickController.durationMs)
         }
