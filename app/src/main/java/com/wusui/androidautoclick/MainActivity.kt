@@ -118,7 +118,6 @@ fun AppShell() {
     var draggable by remember { mutableStateOf(true) }
     var opacity by remember { mutableStateOf(90) }
     var floatSize by remember { mutableStateOf("中") }
-    var themeDark by remember { mutableStateOf(SettingsColors.isDark) }
 
     // 初始化控制器預設值
     LaunchedEffect(Unit) {
@@ -909,7 +908,6 @@ fun OverlayDetail(
 @Composable
 fun AboutDetail() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var themeDark by remember { mutableStateOf(SettingsColors.isDark) }
     Spacer(Modifier.height(12.dp))
     DetailTitle("關於")
     Spacer(Modifier.height(16.dp))
