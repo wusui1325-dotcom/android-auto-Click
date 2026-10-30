@@ -563,6 +563,9 @@ fun ClickDetail(
     Spacer(Modifier.height(8.dp))
 
     SettingsSection(label = "進階") {
+        ToggleRow("開始提示", ClickController.showToast) {
+            ClickController.showToast = it
+        }
         ToggleRow("結束提示音", ClickController.endBeep) {
             ClickController.endBeep = it
         }

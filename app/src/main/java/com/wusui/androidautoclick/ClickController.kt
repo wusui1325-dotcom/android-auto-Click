@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var endBeep: Boolean = false
+    var showToast: Boolean = false
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -102,6 +102,9 @@ object ClickController {
             if (vibrateOnStart) {
                 val vib = ctx.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
                 vib?.vibrate(android.os.VibrationEffect.createOneShot(40, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            }
+            if (showToast) {
+                android.widget.Toast.makeText(ctx, "開始", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
 
