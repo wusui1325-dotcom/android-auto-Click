@@ -12,7 +12,7 @@ import android.content.Context
 object ClickController {
 
     var appContext: Context? = null
-    var intervalMs: Long = 200
+    var startDelayMs: Long = 0
     var antiDetect: Boolean = false
     var randomOffset: Boolean = false
     var randomInterval: Boolean = false
@@ -77,6 +77,7 @@ object ClickController {
                     return
                 }
 
+                val usePoints = if (mode == "多點" && points.size > 1) points else listOf(points.first())
                 var (x, y) = usePoints.getOrElse(pointIndex % usePoints.size) { usePoints.first() }
                 if (randomOffset) {
                     x += (kotlin.random.Random.nextInt(-8, 9)).toFloat()
@@ -99,7 +100,8 @@ object ClickController {
                 }
             }
         }
-        handler.post(runnable!!)
+        val launch = { handler.post(runnable!!) }
+        if (startDelayMs > 0) handler.postDelayed(launch, startDelayMs) else launch()
         return true
     }
 

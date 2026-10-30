@@ -432,8 +432,8 @@ fun ClickDetail(
             onInterval(v.removeSuffix(" ms").toInt())
         }
         CycleRow("次數", count, listOf("無限", "10", "50", "100", "500")) { onCount(it) }
-        CycleRow("持續時間", "$duration ms", listOf(20, 50, 100, 200).map { "$it ms" }) { v ->
-            onDuration(v.removeSuffix(" ms").toInt())
+        CycleRow("開始延遲", "${ClickController.startDelayMs} ms", listOf(0, 500, 1000, 2000).map { "$it ms" }) { v ->
+            ClickController.startDelayMs = v.removeSuffix(" ms").toLong()
         }
         SettingsStatusRow(
             "狀態",
