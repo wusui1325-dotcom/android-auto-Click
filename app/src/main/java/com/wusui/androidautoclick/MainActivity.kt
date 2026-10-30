@@ -890,7 +890,7 @@ fun AboutDetail() {
     Spacer(Modifier.height(16.dp))
 
     SettingsSection(label = "應用") {
-        SettingsStatusRow("版本", "1.3.0") {}
+        SettingsStatusRow("版本", "1.4.0") {}
         SettingsStatusRow("立即停止", "") {
             ClickController.stop()
             SequenceRecorder.stopReplay()
