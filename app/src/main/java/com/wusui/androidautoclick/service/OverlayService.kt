@@ -200,19 +200,27 @@ class OverlayService : Service() {
         view.post {
             try {
                 if (view.windowToken == null) return@post
+                // Do not change offset mid-gesture: a tap on a newly added
+                // drag-start marker often coincides with first calibration.
+                if (draggingMarker) return@post
                 val loc = IntArray(2)
                 view.getLocationOnScreen(loc)
                 val next = OverlayGeometry.offsetFromLocation(loc[0], loc[1], params.x, params.y)
-                val first = !offsetCalibrated
-                if (first || next != layoutOffset) {
-                    layoutOffset = next
-                    offsetCalibrated = true
-                    val bv = barView
-                    val bp = barParams
-                    if (bv != null && bp != null) {
-                        applyBarCenter(bv, bp)
-                    }
-                    if (first) markersDirty = true
+                if (offsetCalibrated && next == layoutOffset) return@post
+                layoutOffset = next
+                offsetCalibrated = true
+                val bv = barView
+                val bp = barParams
+                if (bv != null && bp != null) {
+                    applyBarCenter(bv, bp)
+                }
+                // Apply the new offset now — waiting for the 400ms pulse left a
+                // window where a tap on ↑N looked like the point jumped.
+                if (!draggingMarker) {
+                    markersDirty = false
+                    refreshMarkers()
+                } else {
+                    markersDirty = true
                 }
             } catch (_: Exception) {
             }
@@ -454,11 +462,13 @@ class OverlayService : Service() {
             when (type) {
                 SessionType.MULTI -> {
                     iconBtn(FlatIconView.Kind.PLUS, s(R.string.action_add_point)) {
-                        AppStore.addClickPoint(sw / 2f, sh / 2f)
+                        val (cw, ch) = screenSize()
+                        AppStore.addClickPoint(cw / 2f, ch / 2f)
                         markersDirty = true
                     }
                     iconBtn(FlatIconView.Kind.DRAG, s(R.string.action_drag)) {
-                        AppStore.addDragGroup(sw * 0.35f, sh / 2f, sw * 0.65f, sh / 2f)
+                        val (cw, ch) = screenSize()
+                        AppStore.addDragGroup(cw * 0.35f, ch / 2f, cw * 0.65f, ch / 2f)
                         markersDirty = true
                     }
                     iconBtn(
@@ -482,7 +492,8 @@ class OverlayService : Service() {
                         markersDirty = true
                     }
                     iconBtn(FlatIconView.Kind.PLUS, s(R.string.action_add_point)) {
-                        AppStore.addClickPoint(sw / 2f, sh / 2f)
+                        val (cw, ch) = screenSize()
+                        AppStore.addClickPoint(cw / 2f, ch / 2f)
                         markersDirty = true
                     }
                 }
@@ -707,6 +718,17 @@ class OverlayService : Service() {
 
     // ── Markers ────────────────────────────────────────────────
 
+    private fun markerScreenCenter(view: View, half: Float): Pair<Float, Float>? {
+        return try {
+            if (view.windowToken == null) return null
+            val loc = IntArray(2)
+            view.getLocationOnScreen(loc)
+            OverlayGeometry.screenFromLocation(loc[0], loc[1], half)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun clearMarkers() {
         markers.values.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
         markers.clear()
@@ -794,32 +816,50 @@ class OverlayService : Service() {
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        val dx = (e.rawX - tx).toInt()
-                        val dy = (e.rawY - ty).toInt()
-                        if (abs(dx) > slop || abs(dy) > slop) {
+                        val dx = e.rawX - tx
+                        val dy = e.rawY - ty
+                        if (OverlayGeometry.exceededSlop(dx, dy, slop)) {
                             if (!moved) mainHandler.removeCallbacks(longRun)
                             moved = true
-                            params.x = ix + dx
-                            params.y = iy + dy
+                            params.x = ix + dx.toInt()
+                            params.y = iy + dy.toInt()
                             try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
                         }
                         true
                     }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    MotionEvent.ACTION_UP -> {
                         mainHandler.removeCallbacks(longRun)
                         if (moved) {
-                            val (sx, sy) = OverlayGeometry.screenFromParams(
-                                params.x, params.y, half, layoutOffset
-                            )
-                            AppStore.moveNode(node.id, sx, sy)
+                            // Commit the on-screen center, not params+offset
+                            // (offset may have been 0 or have changed mid-gesture).
+                            val saved = markerScreenCenter(wrap, half)
+                            if (saved != null) {
+                                AppStore.moveNode(node.id, saved.first, saved.second)
+                            }
+                        } else if (params.x != ix || params.y != iy) {
+                            params.x = ix
+                            params.y = iy
+                            try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
                         }
                         draggingMarker = false
-                        // Tap: delete-mode only. Long-press opens adjust.
+                        if (!offsetCalibrated) calibrateFrom(wrap, params)
+                        // Tap: delete-mode only. A short tap must not relocate the point.
                         if (!moved && !longFired && AppStore.deleteMode.value) {
                             AppStore.removeNodeOrGroup(node.id)
                             markersDirty = true
                             rebuildBar()
                         }
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        mainHandler.removeCallbacks(longRun)
+                        if (params.x != ix || params.y != iy) {
+                            params.x = ix
+                            params.y = iy
+                            try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
+                        }
+                        draggingMarker = false
+                        if (!offsetCalibrated) calibrateFrom(wrap, params)
                         true
                     }
                     else -> false

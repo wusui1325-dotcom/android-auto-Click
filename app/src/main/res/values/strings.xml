@@ -50,7 +50,7 @@
 
     <string name="section_help">說明</string>
     <string name="help_title">操作概要</string>
-    <string name="help_body">控制列黑白平面圖示，可調橫豎／大小、以中心拖動（收起亦可）。觸控點短按定位；長按調間隔／次數／點擊時長。末點間隔＝下一輪循環等待。</string>
+    <string name="help_body">控制列黑白平面圖示，可調橫豎／大小、以中心拖動（收起亦可）。觸控點拖動即可改位置（輕點不會移動）；長按調間隔／次數／點擊時長。末點間隔＝下一輪循環等待。</string>
 
     <string name="section_about">關於</string>
     <string name="about_title">版本資訊</string>

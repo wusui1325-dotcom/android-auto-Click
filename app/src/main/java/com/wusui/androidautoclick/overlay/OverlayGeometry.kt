@@ -69,6 +69,24 @@ object OverlayGeometry {
         (screenX - halfSize - offset.x).toInt() to (screenY - halfSize - offset.y).toInt()
 
     /**
+     * Marker center in screen pixels from [View.getLocationOnScreen].
+     * Prefer this when committing a drag: it does not depend on [LayoutOffset],
+     * which may still be uncalibrated or may have changed mid-gesture.
+     */
+    fun screenFromLocation(
+        locationX: Int,
+        locationY: Int,
+        halfSize: Float
+    ): Pair<Float, Float> =
+        locationX + halfSize to locationY + halfSize
+
+    /** Finger movement past touch slop counts as a drag, not a tap. */
+    fun exceededSlop(dx: Float, dy: Float, slop: Int): Boolean {
+        val s = slop.coerceAtLeast(0).toFloat()
+        return kotlin.math.abs(dx) > s || kotlin.math.abs(dy) > s
+    }
+
+    /**
      * Keep as much of a [barW] x [barH] window in the safe area as possible.
      * [centerX]/[centerY] and the result are in the same space as LayoutParams
      * (convert to/from screen with [offset]). [safeLeft]/[safeTop]/[safeRight]/

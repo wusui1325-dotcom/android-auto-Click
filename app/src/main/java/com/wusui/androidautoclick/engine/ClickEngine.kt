@@ -256,6 +256,10 @@ object ClickEngine {
                     scheduleAfter(gen, gapAfter)
                 }
             }
+            item.node.kind == NodeKind.DRAG_START -> {
+                // Unpaired start (missing END): skip, do not play it as a tap.
+                scheduleAfter(gen, gapAfter)
+            }
             else -> {
                 runClicks(gen, item.node, params, 0, gapAfter)
             }

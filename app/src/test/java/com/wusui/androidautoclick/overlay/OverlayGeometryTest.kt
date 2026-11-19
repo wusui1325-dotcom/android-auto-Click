@@ -246,4 +246,51 @@ class OverlayGeometryTest {
         // origin pinned to 80, center = 80 + 1000
         assertEquals(1080f, cx)
     }
+
+    @Test
+    fun screenFromLocation_isVisualCenter() {
+        val (x, y) = OverlayGeometry.screenFromLocation(100, 200, halfSize = 22f)
+        assertEquals(122f, x)
+        assertEquals(222f, y)
+    }
+
+    @Test
+    fun screenFromLocation_ignoresAStaleLayoutOffset() {
+        // Marker was placed with offset 0; calibration later becomes (0, 80).
+        // Saving with screenFromParams would jump Y by 80; location must not.
+        val paramsX = 100
+        val paramsY = 200
+        val half = 22f
+        val changed = LayoutOffset(x = 0, y = 80)
+        val jumped = OverlayGeometry.screenFromParams(paramsX, paramsY, half, changed)
+        assertEquals(122f, jumped.first)
+        assertEquals(302f, jumped.second)
+        val locX = paramsX + 0 // actual getLocationOnScreen if system offset was already applied
+        val locY = paramsY + 0
+        val stable = OverlayGeometry.screenFromLocation(locX, locY, half)
+        assertEquals(122f, stable.first)
+        assertEquals(222f, stable.second)
+    }
+
+    @Test
+    fun screenFromLocation_matchesParamsWhenOffsetKnown() {
+        val offset = LayoutOffset(x = 12, y = 56)
+        val half = 22f
+        val paramsX = 70
+        val paramsY = 150
+        val locX = paramsX + offset.x
+        val locY = paramsY + offset.y
+        val fromLoc = OverlayGeometry.screenFromLocation(locX, locY, half)
+        val fromParams = OverlayGeometry.screenFromParams(paramsX, paramsY, half, offset)
+        assertEquals(fromParams.first, fromLoc.first)
+        assertEquals(fromParams.second, fromLoc.second)
+    }
+
+    @Test
+    fun exceededSlop_tapInsideSlopIsNotADrag() {
+        assertFalse(OverlayGeometry.exceededSlop(4f, -3f, slop = 8))
+        assertFalse(OverlayGeometry.exceededSlop(8f, 8f, slop = 8))
+        assertTrue(OverlayGeometry.exceededSlop(9f, 0f, slop = 8))
+        assertTrue(OverlayGeometry.exceededSlop(0f, -9f, slop = 8))
+    }
 }

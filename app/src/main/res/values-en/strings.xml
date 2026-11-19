@@ -50,7 +50,7 @@
 
     <string name="section_help">Help</string>
     <string name="help_title">Quick guide</string>
-    <string name="help_body">Flat B&amp;W control bar — rotate, resize, drag from center (works when collapsed). Short-tap moves a point; long-press sets interval / count / tap duration. Last point interval = wait before the next cycle.</string>
+    <string name="help_body">Flat B&amp;W control bar — rotate, resize, drag from center (works when collapsed). Drag a point to reposition it (a short tap does not move it); long-press sets interval / count / tap duration. Last point interval = wait before the next cycle.</string>
 
     <string name="section_about">About</string>
     <string name="about_title">Version</string>
