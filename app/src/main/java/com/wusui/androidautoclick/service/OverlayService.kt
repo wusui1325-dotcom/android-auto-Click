@@ -158,6 +158,7 @@ class OverlayService : Service() {
         lastScreenH = sh
         lastDensityDpi = resources.displayMetrics.densityDpi
         lastRotation = ScreenMetrics.rotation(this)
+        RootClickBackend.notifyScreenSize(sw, sh, lastRotation)
     }
 
     /**
@@ -178,7 +179,7 @@ class OverlayService : Service() {
         lastRotation = rot
         layoutOffset = LayoutOffset()
         offsetCalibrated = false
-        RootClickBackend.notifyScreenSize(sw, sh)
+        RootClickBackend.notifyScreenSize(sw, sh, rot)
         val bv = barView
         val bp = barParams
         if (bv != null && bp != null) {

@@ -249,10 +249,9 @@ object ClickEngine {
             item.node.kind == NodeKind.DRAG_START && item.end != null -> {
                 val (x1, y1) = jitter(item.node.x, item.node.y, params)
                 val (x2, y2) = jitter(item.end.x, item.end.y, params)
-                injectSwipe(x1, y1, x2, y2, params.swipeDurationMs) { ok ->
+                injectSwipe(x1, y1, x2, y2, params.swipeDurationMs) { outcome ->
                     if (gen != generation) return@injectSwipe
-                    if (!okResult(ok)) return@injectSwipe
-                    bumpAction()
+                    if (!applyOutcome(outcome, bump = true)) return@injectSwipe
                     scheduleAfter(gen, gapAfter)
                 }
             }
@@ -279,24 +278,25 @@ object ClickEngine {
             return
         }
         val (x, y) = jitter(node.x, node.y, params)
-        injectClick(x, y, node.tapDurationMs.coerceAtLeast(1L)) { ok ->
+        injectClick(x, y, node.tapDurationMs.coerceAtLeast(1L)) { outcome ->
             if (gen != generation) return@injectClick
-            if (!okResult(ok)) return@injectClick
-            bumpAction()
+            if (!applyOutcome(outcome, bump = true)) return@injectClick
             // No extra delay: injectors are strictly serial.
             // Next tap / interval waits only for completion + gapAfter.
             runClicks(gen, node, params, done + 1, gapAfter)
         }
     }
 
-    private fun injectClick(x: Float, y: Float, durationMs: Long, onDone: (Boolean) -> Unit) {
+    private fun injectClick(x: Float, y: Float, durationMs: Long, onDone: (InjectOutcome) -> Unit) {
         if (useRootBackend()) {
-            RootClickBackend.click(x, y, durationMs, onDone)
+            RootClickBackend.click(x, y, durationMs) { ok ->
+                onDone(if (ok) InjectOutcome.SUCCESS else InjectOutcome.FAILED)
+            }
             return
         }
         val service = ClickAccessibilityService.instance
         if (service == null) {
-            onDone(false)
+            onDone(InjectOutcome.FAILED)
             return
         }
         dispatcher.click(service, x, y, durationMs, onDone)
@@ -308,15 +308,17 @@ object ClickEngine {
         x2: Float,
         y2: Float,
         durationMs: Long,
-        onDone: (Boolean) -> Unit
+        onDone: (InjectOutcome) -> Unit
     ) {
         if (useRootBackend()) {
-            RootClickBackend.swipe(x1, y1, x2, y2, durationMs, onDone)
+            RootClickBackend.swipe(x1, y1, x2, y2, durationMs) { ok ->
+                onDone(if (ok) InjectOutcome.SUCCESS else InjectOutcome.FAILED)
+            }
             return
         }
         val service = ClickAccessibilityService.instance
         if (service == null) {
-            onDone(false)
+            onDone(InjectOutcome.FAILED)
             return
         }
         dispatcher.swipe(service, x1, y1, x2, y2, durationMs, onDone)
@@ -340,17 +342,31 @@ object ClickEngine {
         }
     }
 
-    private fun okResult(ok: Boolean): Boolean {
-        if (ok) {
-            consecutiveFails = 0
-            return true
+    /**
+     * Apply an inject outcome. [SKIPPED] (Accessibility cancelled by a finger
+     * after retries) continues the run and does not count as a successful action.
+     * Only a hard [FAILED] stops playback.
+     */
+    private fun applyOutcome(outcome: InjectOutcome, bump: Boolean): Boolean {
+        return when (outcome) {
+            InjectOutcome.SUCCESS -> {
+                consecutiveFails = 0
+                if (bump) bumpAction()
+                true
+            }
+            InjectOutcome.SKIPPED -> {
+                consecutiveFails = 0
+                true
+            }
+            InjectOutcome.FAILED -> {
+                consecutiveFails++
+                setError(
+                    msg(if (useRootBackend()) R.string.err_root_inject else R.string.err_gesture_failed)
+                )
+                stop()
+                false
+            }
         }
-        consecutiveFails++
-        setError(
-            msg(if (useRootBackend()) R.string.err_root_inject else R.string.err_gesture_failed)
-        )
-        stop()
-        return false
     }
 
     private fun jitter(x: Float, y: Float, params: GlobalParams): Pair<Float, Float> {

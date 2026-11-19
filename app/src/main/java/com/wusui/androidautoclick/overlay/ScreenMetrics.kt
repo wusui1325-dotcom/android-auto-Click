@@ -31,6 +31,12 @@ object ScreenMetrics {
         return ScreenSize(w, h)
     }
 
+    /** Natural (ROTATION_0) pixel size for a stable uinput / digitizer ABS range. */
+    fun nativeSize(context: Context): Pair<Int, Int> {
+        val (w, h) = realSize(context)
+        return ScreenCoords.nativeSize(w, h, rotation(context))
+    }
+
     /** Current [Display.getRotation], or [Surface.ROTATION_0] if unknown. */
     fun rotation(context: Context): Int {
         return try {

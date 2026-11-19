@@ -120,7 +120,7 @@
     <string name="status_record_done">Recording stopped</string>
     <string name="err_a11y_disconnected">Accessibility disconnected</string>
     <string name="status_cycle_order">Cycle %1$d · # %2$d</string>
-    <string name="err_gesture_failed">Gesture failed (interrupted or Accessibility off)</string>
+    <string name="err_gesture_failed">Gesture failed (Accessibility disconnected or the system refused it)</string>
 
     <!-- 3.0.8 landscape + root mode -->
     <string name="section_click_method">Click method</string>

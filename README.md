@@ -1,4 +1,4 @@
-# AutoClick 3.0.11
+# AutoClick 3.0.12
 
 免廣告、最簡潔的 Android 自動點擊／連點器。UI 採 iOS Settings 黑白平面風格。介面以繁體中文為主，並內建簡體中文與 English。
 
@@ -11,6 +11,14 @@
 - 序列錄製（見限制）與手動加點
 - 應用內切換繁體／简体／English
 - 可選 Root 點擊方式（預設關閉，見下）
+
+## 3.0.12
+
+- **橫屏點位（Root）**：虛擬觸控裝置改為固定使用螢幕自然方向（ROTATION_0）的座標範圍，旋轉時不再重建裝置。注入前把目前螢幕座標（與 getLocationOnScreen／dispatchGesture 同一空間）換算成該自然軸，並用單元測試覆蓋 0°／90°／180°／270°（含來回轉換與左右橫屏差異）。CONFIG 會帶上自然寬高與目前旋轉；旋轉更新只改轉換、不再做 200ms 裝置重建。無障礙路徑本身已使用螢幕像素與即時 Display 尺寸，未再對已存方案座標做旋轉矩陣重映射（遊戲會重排畫面）。
+- **與食指同時操作**：無障礙的 `dispatchGesture` 無法做到真正的雙指注入，使用者手指會取消進行中的手勢。改為在約 200ms 內重試數次；若仍無法點上，略過該次點擊／滑動並繼續循環，不再因此整段停止。懸浮標記在播放時仍是不可觸控，沒有新增全螢幕攔截層。Root 優先寫入真實觸控裝置的高編號空閒 slot（當作第二根手指，不佔用使用者的 slot 0，也不送出會取消食指的 BTN_TOUCH 0）；若寫不進去才退回長期存活的 uinput 裝置。
+- **Root 速度**：只保留一個長期存活的注入行程；裝置只在自然尺寸真的改變或 fd 失效時重建，旋轉只更新轉換。拿掉每次 UI_DEV_CREATE 後固定 200ms 等待，改為第一次注入短暫重試。TAP／SWIPE 走同一條線協議，按壓時長下限 1ms（與無障礙相同，不再另加 100ms 地板）。成功取得 Root 授權後走此快路徑，不會用每次另起 JVM 的 `input` 指令來點。
+
+本版本未在真機上操作驗證（無裝置實測）。
 
 ## 3.0.11
 
@@ -49,8 +57,8 @@
 
 ```
 engine/    ClickEngine · GestureDispatcher（無障礙，嚴格串行）· Models
-overlay/   OverlayGeometry（純座標／限制邏輯，含單元測試）· ScreenMetrics
-root/      RootClickBackend（可選；uinput 助手 + input 後備）
+overlay/   OverlayGeometry · ScreenCoords（螢幕↔自然軸轉換，含單元測試）· ScreenMetrics
+root/      RootClickBackend（可選；真實觸控 evdev 或長期 uinput 助手 + input 後備）
 data/      AppStore（StateFlow 單一真相來源）
 service/   ClickAccessibilityService · OverlayService（真 FGS）· 權限／通知
 ui/        Compose Settings 風單 Activity
@@ -68,7 +76,8 @@ native/    root_uinput.c（預編譯進 assets/root_uinput/<abi>/；CI 不編 ND
 
 - 序列錄製仍依賴無障礙 `TYPE_VIEW_CLICKED`，即使點擊方式選了 Root 也一樣；遊戲自繪 View 通常錄不到，請用懸浮標記手動建步驟。
 - 以無障礙播放時，需使用者手動開啟無障礙與懸浮窗。
-- 以 Root 播放時，需使用者授予 su，並開啟懸浮窗。部分裝置可能無法建立 uinput，此時會改用較慢的系統 `input` 指令。
+- 以 Root 播放時，需使用者授予 su，並開啟懸浮窗。優先寫入真實觸控裝置的空閒 slot；若無法寫入再使用 uinput。只有在助手完全無法啟動時，才會改用較慢的系統 `input` 指令。
+- 以無障礙播放時，無法與使用者手指同時作為兩根獨立指標；手指按住時該下點擊可能被略過，但不會因此停止整段播放。Root 在能寫入真實觸控裝置時，可作為第二根手指與食指共存。
 - 旋轉後不重映射已存座標；畫面外的點仍按原座標點擊。
 - 本版本無真機操作驗證。
 

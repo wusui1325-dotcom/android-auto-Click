@@ -120,7 +120,7 @@
     <string name="status_record_done">录制结束</string>
     <string name="err_a11y_disconnected">无障碍服务已断开</string>
     <string name="status_cycle_order">循环 %1$d · 序 %2$d</string>
-    <string name="err_gesture_failed">手势失败（触控打断或无障碍已断）</string>
+    <string name="err_gesture_failed">手势失败（无障碍已断开或系统拒绝）</string>
 
     <!-- 3.0.8 landscape + root mode -->
     <string name="section_click_method">点击方式</string>

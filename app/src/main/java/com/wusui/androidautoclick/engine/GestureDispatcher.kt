@@ -9,11 +9,15 @@ import java.util.ArrayDeque
 
 /**
  * Strictly serial gesture queue per AccessibilityService.dispatchGesture contract:
- * any in-flight gesture is cancelled by the next one / user touch, so we never
- * overlap strokes. Coordinates are screen pixels; times are milliseconds
+ * any in-flight gesture is cancelled by the next one or by a real finger, so we
+ * never overlap strokes. Coordinates are screen pixels; times are milliseconds
  * (GestureDescription docs).
  *
- * Soft-retry once on cancel (user finger / system interrupt) before reporting failure.
+ * dispatchGesture cannot inject a second pointer alongside the user's finger.
+ * A user touch cancels the in-flight gesture. We retry a few times over
+ * [GestureRetryPolicy.RETRY_WINDOW_MS]; if it still cannot land, the stroke is
+ * [InjectOutcome.SKIPPED] and playback continues — it is not a fatal failure
+ * and not a fake success.
  *
  * Tap stroke duration floor is 1ms (API allows >0). We deliberately do NOT use
  * ViewConfiguration.getTapTimeout() (~100ms) — that is for View tap-vs-longpress,
@@ -27,8 +31,8 @@ class GestureDispatcher {
 
     private data class Queued(
         val gesture: GestureDescription,
-        val onDone: (Boolean) -> Unit,
-        val retriesLeft: Int = 1
+        val onDone: (InjectOutcome) -> Unit,
+        val retriesLeft: Int = GestureRetryPolicy.MAX_CANCEL_RETRIES
     )
 
     fun reset() {
@@ -43,7 +47,7 @@ class GestureDispatcher {
         x: Float,
         y: Float,
         durationMs: Long,
-        onDone: (Boolean) -> Unit
+        onDone: (InjectOutcome) -> Unit
     ) {
         val max = GestureDescription.getMaxGestureDuration()
         // API: stroke duration must be > 0 and ≤ max. No TapTimeout requirement.
@@ -61,7 +65,7 @@ class GestureDispatcher {
         x2: Float,
         y2: Float,
         durationMs: Long,
-        onDone: (Boolean) -> Unit
+        onDone: (InjectOutcome) -> Unit
     ) {
         val max = GestureDescription.getMaxGestureDuration()
         val dur = durationMs.coerceIn(1L, max)
@@ -77,15 +81,15 @@ class GestureDispatcher {
     private fun enqueue(
         service: AccessibilityService,
         gesture: GestureDescription,
-        onDone: (Boolean) -> Unit
+        onDone: (InjectOutcome) -> Unit
     ) {
         // Keep enqueue on main for queue thread-safety
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            queue.addLast(Queued(gesture, onDone, retriesLeft = 1))
+            queue.addLast(Queued(gesture, onDone))
             pump(service)
         } else {
             main.post {
-                queue.addLast(Queued(gesture, onDone, retriesLeft = 1))
+                queue.addLast(Queued(gesture, onDone))
                 pump(service)
             }
         }
@@ -102,21 +106,21 @@ class GestureDispatcher {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 if (gen != generation) return
                 busy = false
-                next.onDone(true)
+                next.onDone(InjectOutcome.SUCCESS)
                 pump(service)
             }
 
             override fun onCancelled(gestureDescription: GestureDescription?) {
                 if (gen != generation) return
                 busy = false
-                if (next.retriesLeft > 0) {
+                if (GestureRetryPolicy.shouldRetryAfterCancel(next.retriesLeft)) {
                     queue.addFirst(next.copy(retriesLeft = next.retriesLeft - 1))
                     main.postDelayed({
                         if (gen != generation) return@postDelayed
                         pump(service)
-                    }, 40)
+                    }, GestureRetryPolicy.RETRY_DELAY_MS)
                 } else {
-                    next.onDone(false)
+                    next.onDone(GestureRetryPolicy.outcomeWhenRetriesExhausted())
                     pump(service)
                 }
             }
@@ -128,7 +132,7 @@ class GestureDispatcher {
         }
         if (!ok) {
             busy = false
-            next.onDone(false)
+            next.onDone(InjectOutcome.FAILED)
             pump(service)
         }
     }

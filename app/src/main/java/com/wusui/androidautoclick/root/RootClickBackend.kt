@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.wusui.androidautoclick.overlay.ScreenCoords
 import com.wusui.androidautoclick.overlay.ScreenMetrics
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,13 +34,17 @@ enum class RootStatus {
 /**
  * Optional root click backend. OFF by default (see AppStore).
  *
- * Fast path: a kept-alive su process running the bundled uinput helper,
- * accepting TAP/SWIPE without starting a new JVM per click.
+ * Fast path: a kept-alive su process running the bundled helper, which
+ * prefers injecting into the real Type-B touchscreen on a high free slot
+ * (a second finger next to the user's) and otherwise uses a long-lived
+ * uinput device with a stable natural-orientation ABS range. TAP/SWIPE
+ * stay on that process — no new JVM per click.
  *
  * Last-resort fallback: a persistent su shell running `input swipe` /
- * `input tap`. That still starts an app_process JVM per gesture and is
- * too slow for tight auto-click intervals — only used when uinput cannot
- * be set up. The caveat stays in this comment, not in a user-facing banner.
+ * `input tap`. That starts an app_process JVM per gesture and is too
+ * slow for tight auto-click intervals — only used when the helper cannot
+ * be set up at all. A successful Root grant uses the helper, not `input`.
+ * The caveat stays in this comment, not in a user-facing banner.
  *
  * su is used only to inject the user's own marked taps/swipes. This is not
  * a general root shell UI, and no su binary is bundled.
@@ -51,7 +56,7 @@ object RootClickBackend {
     private const val GRANT_TIMEOUT_MS = 60_000L
     private const val QUICK_RESTART_MS = 4_000L
     private const val IO_TIMEOUT_PAD_MS = 3_000L
-    private const val CONFIG_TIMEOUT_MS = 8_000L
+    private const val CONFIG_TIMEOUT_MS = 4_000L
 
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor { r ->
@@ -68,10 +73,22 @@ object RootClickBackend {
     private var helper: LineSession? = null
     private var fallbackSu: LineSession? = null
     private var useFallback = false
-    private var lastW = 0
-    private var lastH = 0
+    private var lastScreenW = 0
+    private var lastScreenH = 0
+    private var lastNativeW = 0
+    private var lastNativeH = 0
+    private var lastRotation = 0
+    private var appContext: Context? = null
     private var detectedSu: String? = null
     private val generation = AtomicInteger(0)
+
+    private data class DisplayState(
+        val screenW: Int,
+        val screenH: Int,
+        val nativeW: Int,
+        val nativeH: Int,
+        val rotation: Int
+    )
 
     fun isReady(): Boolean = synchronized(sessionLock) { isReadyLocked() }
 
@@ -98,6 +115,7 @@ object RootClickBackend {
      */
     fun requestAccess(context: Context, onDone: ((RootStatus) -> Unit)? = null) {
         val app = context.applicationContext
+        appContext = app
         _busy.value = true
         io.execute {
             val result = try {
@@ -117,7 +135,11 @@ object RootClickBackend {
      * not wait the full grant timeout — the Settings toggle is what prompts.
      */
     fun ensureReadyBlocking(context: Context): RootStatus {
-        if (isReady()) return RootStatus.AUTHORIZED
+        appContext = context.applicationContext
+        if (isReady()) {
+            io.execute { synchronized(sessionLock) { syncConfigLocked(readDisplayState()) } }
+            return RootStatus.AUTHORIZED
+        }
         return try {
             val result = ensureSession(context.applicationContext, timeoutMs = QUICK_RESTART_MS)
             _status.value = result
@@ -130,7 +152,14 @@ object RootClickBackend {
     }
 
     fun click(x: Float, y: Float, durationMs: Long, onDone: (Boolean) -> Unit) {
-        submit(RootProtocol.tap(x, y, durationMs), durationMs, onDone)
+        submit(durationMs, onDone) { state, fallback ->
+            if (fallback) {
+                RootProtocol.tap(x, y, durationMs)
+            } else {
+                val (nx, ny) = ScreenCoords.screenToNative(x, y, state.nativeW, state.nativeH, state.rotation)
+                RootProtocol.tap(nx, ny, durationMs)
+            }
+        }
     }
 
     fun swipe(
@@ -141,42 +170,37 @@ object RootClickBackend {
         durationMs: Long,
         onDone: (Boolean) -> Unit
     ) {
-        submit(RootProtocol.swipe(x1, y1, x2, y2, durationMs), durationMs, onDone)
+        submit(durationMs, onDone) { state, fallback ->
+            if (fallback) {
+                RootProtocol.swipe(x1, y1, x2, y2, durationMs)
+            } else {
+                val (n1x, n1y) = ScreenCoords.screenToNative(x1, y1, state.nativeW, state.nativeH, state.rotation)
+                val (n2x, n2y) = ScreenCoords.screenToNative(x2, y2, state.nativeW, state.nativeH, state.rotation)
+                RootProtocol.swipe(n1x, n1y, n2x, n2y, durationMs)
+            }
+        }
     }
 
-    fun notifyScreenSize(width: Int, height: Int) {
-        if (width == lastW && height == lastH) return
+    /**
+     * Current screen size (getLocationOnScreen / dispatchGesture space) plus
+     * [android.view.Display.getRotation]. Sends a cheap CONFIG (native size +
+     * rotation) to the helper; the uinput device is not recreated on rotation.
+     */
+    fun notifyScreenSize(width: Int, height: Int, rotation: Int = lastRotation) {
+        val state = displayStateFrom(width, height, rotation)
+        if (state.nativeW == lastNativeW && state.nativeH == lastNativeH &&
+            state.rotation == lastRotation &&
+            state.screenW == lastScreenW && state.screenH == lastScreenH
+        ) {
+            return
+        }
         // input fallback uses the current display; no CONFIG to send.
         if (!isReady() || useFallback) {
-            lastW = width
-            lastH = height
+            rememberDisplay(state)
             return
         }
         io.execute {
-            synchronized(sessionLock) {
-                if (width == lastW && height == lastH) return@synchronized
-                val h = helper?.takeIf { it.isAlive() }
-                if (h == null) {
-                    lastW = width
-                    lastH = height
-                    return@synchronized
-                }
-                val cmd = RootProtocol.config(width, height)
-                var ok = RootProtocol.isOk(h.sendAndWait(cmd, CONFIG_TIMEOUT_MS))
-                if (!ok && h.isAlive()) {
-                    ok = RootProtocol.isOk(h.sendAndWait(cmd, CONFIG_TIMEOUT_MS))
-                }
-                if (ok) {
-                    lastW = width
-                    lastH = height
-                } else {
-                    // Do not bump lastW/lastH (so a later notify can retry this size).
-                    // Drop the session so playback stops visibly instead of
-                    // injecting against a stale uinput ABS range.
-                    closeSessionsLocked()
-                    _status.value = if (findSu() != null) RootStatus.NEED_GRANT else RootStatus.NOT_DETECTED
-                }
-            }
+            synchronized(sessionLock) { syncConfigLocked(state) }
         }
     }
 
@@ -184,7 +208,11 @@ object RootClickBackend {
         generation.incrementAndGet()
     }
 
-    private fun submit(command: String, durationMs: Long, onDone: (Boolean) -> Unit) {
+    private fun submit(
+        durationMs: Long,
+        onDone: (Boolean) -> Unit,
+        encode: (DisplayState, Boolean) -> String
+    ) {
         val gen = generation.get()
         io.execute {
             if (gen != generation.get()) {
@@ -193,7 +221,7 @@ object RootClickBackend {
             }
             val timeout = durationMs.coerceAtLeast(1L) + IO_TIMEOUT_PAD_MS
             val ok = synchronized(sessionLock) {
-                performLocked(command, timeout)
+                performLocked(timeout, encode)
             }
             if (gen != generation.get()) {
                 main.post { onDone(false) }
@@ -206,14 +234,90 @@ object RootClickBackend {
         }
     }
 
-    private fun performLocked(command: String, timeoutMs: Long): Boolean {
+    private fun performLocked(timeoutMs: Long, encode: (DisplayState, Boolean) -> String): Boolean {
+        val state = readDisplayState()
         if (useFallback) {
+            rememberDisplay(state)
             val su = fallbackSu?.takeIf { it.isAlive() } ?: return false
-            return runInputFallback(su, command, timeoutMs)
+            return runInputFallback(su, encode(state, true), timeoutMs)
+        }
+        if (!syncConfigLocked(state)) return false
+        val h = helper?.takeIf { it.isAlive() } ?: return false
+        val reply = h.sendAndWait(encode(state, false), timeoutMs) ?: return false
+        return RootProtocol.isOk(reply)
+    }
+
+    private fun displayStateFrom(screenW: Int, screenH: Int, rotation: Int): DisplayState {
+        val (nw, nh) = ScreenCoords.nativeSize(screenW, screenH, rotation)
+        return DisplayState(
+            screenW = screenW.coerceAtLeast(1),
+            screenH = screenH.coerceAtLeast(1),
+            nativeW = nw,
+            nativeH = nh,
+            rotation = RootProtocol.normalizeRotation(rotation)
+        )
+    }
+
+    private fun readDisplayState(): DisplayState {
+        val ctx = appContext
+        if (ctx != null) {
+            try {
+                val (sw, sh) = ScreenMetrics.realSize(ctx)
+                return displayStateFrom(sw, sh, ScreenMetrics.rotation(ctx))
+            } catch (_: Exception) {
+            }
+        }
+        val sw = lastScreenW.coerceAtLeast(1)
+        val sh = lastScreenH.coerceAtLeast(1)
+        val rot = lastRotation
+        return if (lastNativeW > 0 && lastNativeH > 0) {
+            DisplayState(sw, sh, lastNativeW, lastNativeH, rot)
+        } else {
+            displayStateFrom(sw, sh, rot)
+        }
+    }
+
+    private fun rememberDisplay(state: DisplayState) {
+        lastScreenW = state.screenW
+        lastScreenH = state.screenH
+        lastNativeW = state.nativeW
+        lastNativeH = state.nativeH
+        lastRotation = state.rotation
+    }
+
+    /**
+     * Push native size + rotation to the helper. Rotation-only updates are
+     * cheap (no device rebuild). Recreate happens only if native size changes
+     * or the fd dies, and that is the helper's decision.
+     */
+    private fun syncConfigLocked(state: DisplayState, timeoutMs: Long = CONFIG_TIMEOUT_MS): Boolean {
+        if (useFallback || helper?.isAlive() != true) {
+            rememberDisplay(state)
+            return helper?.isAlive() == true || useFallback
+        }
+        if (state.nativeW == lastNativeW && state.nativeH == lastNativeH &&
+            state.rotation == lastRotation
+        ) {
+            lastScreenW = state.screenW
+            lastScreenH = state.screenH
+            return true
         }
         val h = helper?.takeIf { it.isAlive() } ?: return false
-        val reply = h.sendAndWait(command, timeoutMs) ?: return false
-        return RootProtocol.isOk(reply)
+        val cmd = RootProtocol.config(state.nativeW, state.nativeH, state.rotation)
+        var ok = RootProtocol.isOk(h.sendAndWait(cmd, timeoutMs))
+        if (!ok && h.isAlive()) {
+            ok = RootProtocol.isOk(h.sendAndWait(cmd, timeoutMs))
+        }
+        if (ok) {
+            rememberDisplay(state)
+            return true
+        }
+        // Do not bump last* (so a later notify can retry).
+        // Drop the session so playback stops visibly instead of
+        // injecting against a stale ABS range.
+        closeSessionsLocked()
+        _status.value = if (findSu() != null) RootStatus.NEED_GRANT else RootStatus.NOT_DETECTED
+        return false
     }
 
     /**
@@ -250,16 +354,17 @@ object RootClickBackend {
                 RootStatus.DENIED
             }
 
-            val (w, h) = try {
-                ScreenMetrics.realSize(context)
+            appContext = context.applicationContext
+            val state = try {
+                val (w, h) = ScreenMetrics.realSize(context)
+                displayStateFrom(w, h, ScreenMetrics.rotation(context))
             } catch (_: Exception) {
-                1080 to 1920
+                displayStateFrom(1080, 1920, 0)
             }
-            lastW = w
-            lastH = h
+            rememberDisplay(state)
 
             val helperFile = extractHelper(context)
-            if (helperFile != null && startUinputHelper(auth, helperFile, w, h)) {
+            if (helperFile != null && startUinputHelper(auth, helperFile, state)) {
                 useFallback = false
                 auth.closeQuietly()
                 return RootStatus.AUTHORIZED
@@ -282,7 +387,7 @@ object RootClickBackend {
             (useFallback && fallbackSu != null && fallbackSu!!.isAlive())
     }
 
-    private fun startUinputHelper(auth: LineSession, helperFile: File, w: Int, h: Int): Boolean {
+    private fun startUinputHelper(auth: LineSession, helperFile: File, state: DisplayState): Boolean {
         val local = helperFile.absolutePath
         auth.sendAndWait("cp '$local' '$HELPER_REMOTE'", 8_000) ?: return false
         auth.sendAndWait("chmod 700 '$HELPER_REMOTE'", 8_000) ?: return false
@@ -302,7 +407,10 @@ object RootClickBackend {
                 session.closeQuietly()
                 continue
             }
-            val cfg = session.waitForProtocol(RootProtocol.config(w, h), 8_000)
+            val cfg = session.waitForProtocol(
+                RootProtocol.config(state.nativeW, state.nativeH, state.rotation),
+                CONFIG_TIMEOUT_MS
+            )
             if (!RootProtocol.isOk(cfg)) {
                 session.closeQuietly()
                 continue
