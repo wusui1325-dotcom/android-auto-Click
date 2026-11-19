@@ -50,7 +50,7 @@
 
     <string name="section_help">说明</string>
     <string name="help_title">操作概要</string>
-    <string name="help_body">控制栏黑白平面图标，可调横竖／大小、以中心拖动（收起亦可）。触控点拖动即可改位置（轻点不会移动）；长按调间隔／次数／点击时长。末点间隔＝下一轮循环等待。</string>
+    <string name="help_body">控制栏黑白平面图标，可调横竖／大小、以中心拖动（收起亦可）。触控点需明显拖动才会改位置（轻点或轻微位移不会移动）；长按调间隔／次数／点击时长。末点间隔＝下一轮循环等待。</string>
 
     <string name="section_about">关于</string>
     <string name="about_title">版本信息</string>

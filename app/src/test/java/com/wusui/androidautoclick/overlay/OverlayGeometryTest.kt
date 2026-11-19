@@ -293,4 +293,152 @@ class OverlayGeometryTest {
         assertTrue(OverlayGeometry.exceededSlop(9f, 0f, slop = 8))
         assertTrue(OverlayGeometry.exceededSlop(0f, -9f, slop = 8))
     }
+
+    @Test
+    fun markerCommitSlop_isLargerOf24dpAndTwoAndAHalfTouchSlop() {
+        // density 1: 24dp = 24px; 2.5 × 8 = 20 → 24
+        assertEquals(24, OverlayGeometry.markerCommitSlop(touchSlopPx = 8, density = 1f))
+        // xxhdpi with default 8dp slop (24px): 24dp=72, 2.5×24=60 → 72
+        assertEquals(72, OverlayGeometry.markerCommitSlop(touchSlopPx = 24, density = 3f))
+        // unusually large touch slop wins: 2.5 × 20 = 50 > 24
+        assertEquals(50, OverlayGeometry.markerCommitSlop(touchSlopPx = 20, density = 1f))
+        assertTrue(OverlayGeometry.markerCommitSlop(8, 1f) >= 24)
+        assertTrue(OverlayGeometry.markerCommitSlop(8, 1f) >= (8 * 2.5f).toInt())
+    }
+
+    @Test
+    fun markerCommitSlop_sloppyTapPastDefaultSlopIsNotACommit() {
+        val commit = OverlayGeometry.markerCommitSlop(touchSlopPx = 8, density = 1f)
+        // A normal finger tap often exceeds the default 8px slop (~12–20px).
+        assertTrue(OverlayGeometry.exceededSlop(12f, 4f, slop = 8))
+        assertFalse(OverlayGeometry.exceededSlop(12f, 4f, slop = commit))
+        assertTrue(OverlayGeometry.exceededSlop(25f, 0f, slop = commit))
+        assertFalse(OverlayGeometry.exceededSlop(24f, 24f, slop = commit))
+    }
+
+    @Test
+    fun isUsableLocationOnScreen_rejectsZeroSizeAndStaleOrigin() {
+        assertFalse(
+            OverlayGeometry.isUsableLocationOnScreen(0, 0, 200, 400, viewWidth = 0, viewHeight = 44)
+        )
+        assertFalse(
+            OverlayGeometry.isUsableLocationOnScreen(0, 0, 200, 400, viewWidth = 44, viewHeight = 44)
+        )
+        // A window that really is at the origin is fine.
+        assertTrue(
+            OverlayGeometry.isUsableLocationOnScreen(0, 0, 0, 0, viewWidth = 44, viewHeight = 44)
+        )
+        assertTrue(
+            OverlayGeometry.isUsableLocationOnScreen(200, 400, 200, 344, viewWidth = 44, viewHeight = 44)
+        )
+    }
+
+    @Test
+    fun committedScreenCenter_isDownLocationPlusFingerDelta() {
+        val (x, y) = OverlayGeometry.committedScreenCenter(
+            downLocationX = 100,
+            downLocationY = 200,
+            halfSize = 22f,
+            deltaX = 40f,
+            deltaY = -15f
+        )
+        assertEquals(162f, x)
+        assertEquals(207f, y)
+    }
+
+    @Test
+    fun isPlausibleMarkerCommit_rejectsZeroZeroAndCornerJumpFromBadStart() {
+        assertFalse(
+            OverlayGeometry.isPlausibleMarkerCommit(
+                newX = 0f, newY = 0f,
+                startX = 122f, startY = 222f,
+                expectedX = 122f, expectedY = 222f,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        // Stale (0,0) location used as start would jump a mid-screen point to a corner.
+        val jumped = OverlayGeometry.committedScreenCenter(0, 0, halfSize = 22f, deltaX = 8f, deltaY = 4f)
+        assertFalse(
+            OverlayGeometry.isPlausibleMarkerCommit(
+                newX = jumped.first, newY = jumped.second,
+                startX = 22f, startY = 22f,
+                expectedX = 540f, expectedY = 1200f,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        // Honest start at the stored position plus a real drag is accepted.
+        val ok = OverlayGeometry.committedScreenCenter(518, 1178, halfSize = 22f, deltaX = 80f, deltaY = -20f)
+        assertTrue(
+            OverlayGeometry.isPlausibleMarkerCommit(
+                newX = ok.first, newY = ok.second,
+                startX = 540f, startY = 1200f,
+                expectedX = 540f, expectedY = 1200f,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        assertEquals(620f, ok.first)
+        assertEquals(1180f, ok.second)
+        assertFalse(
+            OverlayGeometry.isPlausibleMarkerCommit(
+                newX = Float.NaN, newY = 100f,
+                startX = 100f, startY = 100f,
+                expectedX = 100f, expectedY = 100f,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        assertFalse(
+            OverlayGeometry.isPlausibleMarkerCommit(
+                newX = 2000f, newY = 100f,
+                startX = 100f, startY = 100f,
+                expectedX = 100f, expectedY = 100f,
+                screenW = 1080, screenH = 2400
+            )
+        )
+    }
+
+    @Test
+    fun isPlausibleLayoutOffset_rejectsGarbageFirstSamples() {
+        // Zero-size view.
+        assertFalse(
+            OverlayGeometry.isPlausibleLayoutOffset(
+                100, 200, 100, 144, viewWidth = 0, viewHeight = 48,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        // (0,0) location while the window is mid-screen.
+        assertFalse(
+            OverlayGeometry.isPlausibleLayoutOffset(
+                0, 0, 200, 400, viewWidth = 120, viewHeight = 48,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        // Typical status-bar Y offset is accepted.
+        assertTrue(
+            OverlayGeometry.isPlausibleLayoutOffset(
+                100, 200, 100, 144, viewWidth = 120, viewHeight = 48,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        // Stale mid-rotation sample: location still in portrait, params already landscape-clamped.
+        assertFalse(
+            OverlayGeometry.isPlausibleLayoutOffset(
+                100, 2056, 100, 1016, viewWidth = 200, viewHeight = 64,
+                screenW = 2400, screenH = 1080
+            )
+        )
+        // Implied offset far larger than a status bar / cutout.
+        assertFalse(
+            OverlayGeometry.isPlausibleLayoutOffset(
+                100, 900, 100, 100, viewWidth = 120, viewHeight = 48,
+                screenW = 1080, screenH = 2400
+            )
+        )
+        // Zero offset (params already in screen space) is fine.
+        assertTrue(
+            OverlayGeometry.isPlausibleLayoutOffset(
+                200, 400, 200, 400, viewWidth = 44, viewHeight = 44,
+                screenW = 1080, screenH = 2400
+            )
+        )
+    }
 }

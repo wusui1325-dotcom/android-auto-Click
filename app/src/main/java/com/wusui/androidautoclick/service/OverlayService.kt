@@ -196,15 +196,57 @@ class OverlayService : Service() {
         if (outside > 0) toast(s(R.string.toast_points_offscreen, outside))
     }
 
-    private fun calibrateFrom(view: View, params: WindowManager.LayoutParams) {
+    /**
+     * Try to lock in a layout-to-screen offset from the control bar, which is
+     * already on screen and more stable than a newly added marker. Returns
+     * true only when a validated sample was accepted (or already matches).
+     */
+    private fun tryCalibrateFromBarNow(): Boolean {
+        if (draggingMarker) return false
+        val bv = barView ?: return false
+        val bp = barParams ?: return false
+        return try {
+            if (bv.windowToken == null || bv.width <= 0 || bv.height <= 0) return false
+            val loc = IntArray(2)
+            bv.getLocationOnScreen(loc)
+            val (sw, sh) = screenSize()
+            if (!OverlayGeometry.isPlausibleLayoutOffset(
+                    loc[0], loc[1], bp.x, bp.y, bv.width, bv.height, sw, sh
+                )
+            ) {
+                return false
+            }
+            val next = OverlayGeometry.offsetFromLocation(loc[0], loc[1], bp.x, bp.y)
+            if (offsetCalibrated && next == layoutOffset) return true
+            layoutOffset = next
+            offsetCalibrated = true
+            applyBarCenter(bv, bp)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun calibrateFrom(view: View, params: WindowManager.LayoutParams, attempt: Int = 0) {
         view.post {
             try {
-                if (view.windowToken == null) return@post
                 // Do not change offset mid-gesture: a tap on a newly added
                 // drag-start marker often coincides with first calibration.
                 if (draggingMarker) return@post
+                if (view.windowToken == null || view.width <= 0 || view.height <= 0) {
+                    retryCalibrate(view, params, attempt)
+                    return@post
+                }
                 val loc = IntArray(2)
                 view.getLocationOnScreen(loc)
+                val (sw, sh) = screenSize()
+                if (!OverlayGeometry.isPlausibleLayoutOffset(
+                        loc[0], loc[1], params.x, params.y, view.width, view.height, sw, sh
+                    )
+                ) {
+                    retryCalibrate(view, params, attempt)
+                    return@post
+                }
                 val next = OverlayGeometry.offsetFromLocation(loc[0], loc[1], params.x, params.y)
                 if (offsetCalibrated && next == layoutOffset) return@post
                 layoutOffset = next
@@ -214,8 +256,6 @@ class OverlayService : Service() {
                 if (bv != null && bp != null) {
                     applyBarCenter(bv, bp)
                 }
-                // Apply the new offset now — waiting for the 400ms pulse left a
-                // window where a tap on ↑N looked like the point jumped.
                 if (!draggingMarker) {
                     markersDirty = false
                     refreshMarkers()
@@ -224,6 +264,20 @@ class OverlayService : Service() {
                 }
             } catch (_: Exception) {
             }
+        }
+    }
+
+    private fun retryCalibrate(view: View, params: WindowManager.LayoutParams, attempt: Int) {
+        if (attempt >= 10 || offsetCalibrated) return
+        if (attempt < 3) {
+            calibrateFrom(view, params, attempt + 1)
+        } else {
+            val delay = (16L * (attempt - 2)).coerceAtMost(100L)
+            view.postDelayed({
+                if (!offsetCalibrated && !draggingMarker) {
+                    calibrateFrom(view, params, attempt + 1)
+                }
+            }, delay)
         }
     }
 
@@ -718,23 +772,23 @@ class OverlayService : Service() {
 
     // ── Markers ────────────────────────────────────────────────
 
-    private fun markerScreenCenter(view: View, half: Float): Pair<Float, Float>? {
-        return try {
-            if (view.windowToken == null) return null
-            val loc = IntArray(2)
-            view.getLocationOnScreen(loc)
-            OverlayGeometry.screenFromLocation(loc[0], loc[1], half)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     private fun clearMarkers() {
         markers.values.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
         markers.clear()
     }
 
     private fun refreshMarkers() {
+        // Prefer a validated offset from the control bar before placing
+        // markers, so they are not laid out with (0,0) and later jumped.
+        if (!offsetCalibrated) {
+            if (!tryCalibrateFromBarNow()) {
+                val bv = barView
+                val bp = barParams
+                if (bv != null && bp != null) {
+                    calibrateFrom(bv, bp)
+                }
+            }
+        }
         clearMarkers()
         AppStore.orderedNodes().forEach { addMarker(it) }
     }
@@ -793,11 +847,15 @@ class OverlayService : Service() {
         if (!locked) {
             val longMs = ViewConfiguration.getLongPressTimeout().toLong()
             val slop = ViewConfiguration.get(this).scaledTouchSlop
+            val commitSlop = OverlayGeometry.markerCommitSlop(slop, resources.displayMetrics.density)
             var ix = 0
             var iy = 0
             var tx = 0f
             var ty = 0f
-            var moved = false
+            var downLocX = 0
+            var downLocY = 0
+            var downLocUsable = false
+            var followed = false
             var longFired = false
             val longRun = Runnable {
                 longFired = true
@@ -810,8 +868,27 @@ class OverlayService : Service() {
                         draggingMarker = true
                         ix = params.x; iy = params.y
                         tx = e.rawX; ty = e.rawY
-                        moved = false
+                        followed = false
                         longFired = false
+                        downLocUsable = false
+                        // Capture the on-screen center now, before any
+                        // updateViewLayout. A later getLocationOnScreen can
+                        // still be (0,0) or one frame behind.
+                        try {
+                            if (wrap.windowToken != null && wrap.width > 0 && wrap.height > 0) {
+                                val loc = IntArray(2)
+                                wrap.getLocationOnScreen(loc)
+                                if (OverlayGeometry.isUsableLocationOnScreen(
+                                        loc[0], loc[1], params.x, params.y, wrap.width, wrap.height
+                                    )
+                                ) {
+                                    downLocX = loc[0]
+                                    downLocY = loc[1]
+                                    downLocUsable = true
+                                }
+                            }
+                        } catch (_: Exception) {
+                        }
                         mainHandler.postDelayed(longRun, longMs)
                         true
                     }
@@ -819,8 +896,8 @@ class OverlayService : Service() {
                         val dx = e.rawX - tx
                         val dy = e.rawY - ty
                         if (OverlayGeometry.exceededSlop(dx, dy, slop)) {
-                            if (!moved) mainHandler.removeCallbacks(longRun)
-                            moved = true
+                            if (!followed) mainHandler.removeCallbacks(longRun)
+                            followed = true
                             params.x = ix + dx.toInt()
                             params.y = iy + dy.toInt()
                             try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
@@ -829,22 +906,48 @@ class OverlayService : Service() {
                     }
                     MotionEvent.ACTION_UP -> {
                         mainHandler.removeCallbacks(longRun)
-                        if (moved) {
-                            // Commit the on-screen center, not params+offset
-                            // (offset may have been 0 or have changed mid-gesture).
-                            val saved = markerScreenCenter(wrap, half)
-                            if (saved != null) {
+                        val dx = e.rawX - tx
+                        val dy = e.rawY - ty
+                        val shouldCommit = OverlayGeometry.exceededSlop(dx, dy, commitSlop)
+                        if (shouldCommit) {
+                            // Prefer DOWN screen position + finger delta, not
+                            // params + a possibly stale layoutOffset, and not
+                            // a getLocationOnScreen taken after updateViewLayout.
+                            val start = if (downLocUsable) {
+                                OverlayGeometry.screenFromLocation(downLocX, downLocY, half)
+                            } else {
+                                node.x to node.y
+                            }
+                            val saved = if (downLocUsable) {
+                                OverlayGeometry.committedScreenCenter(downLocX, downLocY, half, dx, dy)
+                            } else {
+                                start.first + dx to start.second + dy
+                            }
+                            val (sw, sh) = screenSize()
+                            if (OverlayGeometry.isPlausibleMarkerCommit(
+                                    saved.first, saved.second,
+                                    start.first, start.second,
+                                    node.x, node.y, sw, sh
+                                )
+                            ) {
                                 AppStore.moveNode(node.id, saved.first, saved.second)
+                            } else if (params.x != ix || params.y != iy) {
+                                params.x = ix
+                                params.y = iy
+                                try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
                             }
                         } else if (params.x != ix || params.y != iy) {
+                            // Sloppy tap: snap back, do not change stored x/y.
                             params.x = ix
                             params.y = iy
                             try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
                         }
                         draggingMarker = false
-                        if (!offsetCalibrated) calibrateFrom(wrap, params)
+                        // Do not calibrateFrom + refreshMarkers on finger-up:
+                        // a first-offset calibration here is what still
+                        // jumped ↑N after 3.0.10.
                         // Tap: delete-mode only. A short tap must not relocate the point.
-                        if (!moved && !longFired && AppStore.deleteMode.value) {
+                        if (!shouldCommit && !longFired && AppStore.deleteMode.value) {
                             AppStore.removeNodeOrGroup(node.id)
                             markersDirty = true
                             rebuildBar()
@@ -859,7 +962,6 @@ class OverlayService : Service() {
                             try { windowManager.updateViewLayout(wrap, params) } catch (_: Exception) {}
                         }
                         draggingMarker = false
-                        if (!offsetCalibrated) calibrateFrom(wrap, params)
                         true
                     }
                     else -> false
@@ -870,8 +972,15 @@ class OverlayService : Service() {
         try {
             windowManager.addView(wrap, params)
             markers[node.id] = wrap to params
+            // Do not calibrate from a newly added marker: the first
+            // getLocationOnScreen is often (0,0) and a refresh would jump
+            // every point. The control bar is the source of truth.
             if (!offsetCalibrated) {
-                calibrateFrom(wrap, params)
+                val bv = barView
+                val bp = barParams
+                if (bv != null && bp != null) {
+                    calibrateFrom(bv, bp)
+                }
             }
         } catch (_: Exception) {
         }

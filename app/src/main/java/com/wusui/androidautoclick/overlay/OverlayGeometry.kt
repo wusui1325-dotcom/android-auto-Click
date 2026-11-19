@@ -87,6 +87,140 @@ object OverlayGeometry {
     }
 
     /**
+     * Distance the finger must travel before a marker's new position is saved.
+     * Visual follow may start at the usual touch slop, but a sloppy tap
+     * that jittered past that slop still snaps back unless this threshold
+     * is exceeded.
+     *
+     * Rule: the larger of 24dp and 2.5× [touchSlopPx].
+     */
+    fun markerCommitSlop(touchSlopPx: Int, density: Float): Int {
+        val dp = density.coerceAtLeast(0.01f)
+        val floor = (24f * dp).toInt().coerceAtLeast(1)
+        val fromTouch = (touchSlopPx.coerceAtLeast(0) * 2.5f).toInt()
+        return maxOf(floor, fromTouch)
+    }
+
+    /**
+     * A [android.view.View.getLocationOnScreen] sample is safe to use as the
+     * DOWN origin of a marker drag. Reject a zero-size view, or the classic
+     * pre-layout (0, 0) frame when [paramsX]/[paramsY] are not near the origin.
+     */
+    fun isUsableLocationOnScreen(
+        locationX: Int,
+        locationY: Int,
+        paramsX: Int,
+        paramsY: Int,
+        viewWidth: Int,
+        viewHeight: Int,
+        originSlackPx: Int = 16
+    ): Boolean {
+        if (viewWidth <= 0 || viewHeight <= 0) return false
+        val slack = originSlackPx.coerceAtLeast(0)
+        if (locationX == 0 && locationY == 0) {
+            if (kotlin.math.abs(paramsX) > slack || kotlin.math.abs(paramsY) > slack) return false
+        }
+        return true
+    }
+
+    /** Screen-space center at finger-up: DOWN location center plus raw finger delta. */
+    fun committedScreenCenter(
+        downLocationX: Int,
+        downLocationY: Int,
+        halfSize: Float,
+        deltaX: Float,
+        deltaY: Float
+    ): Pair<Float, Float> {
+        val (sx, sy) = screenFromLocation(downLocationX, downLocationY, halfSize)
+        return sx + deltaX to sy + deltaY
+    }
+
+    /**
+     * Whether a candidate marker coordinate is safe to persist after a drag.
+     * Never accept a non-finite value, (0, 0), a point outside the screen,
+     * or a start sample that is far from the already-stored position
+     * (that would jump the point, often into a corner).
+     */
+    fun isPlausibleMarkerCommit(
+        newX: Float,
+        newY: Float,
+        startX: Float,
+        startY: Float,
+        expectedX: Float,
+        expectedY: Float,
+        screenW: Int,
+        screenH: Int
+    ): Boolean {
+        if (!newX.isFinite() || !newY.isFinite()) return false
+        if (!startX.isFinite() || !startY.isFinite()) return false
+        if (!expectedX.isFinite() || !expectedY.isFinite()) return false
+        if (newX == 0f && newY == 0f) return false
+        if (newX < 0f || newY < 0f) return false
+        if (screenW > 0 && newX >= screenW) return false
+        if (screenH > 0 && newY >= screenH) return false
+        val jump = kotlin.math.hypot(
+            (startX - expectedX).toDouble(),
+            (startY - expectedY).toDouble()
+        ).toFloat()
+        val shortSide = when {
+            screenW > 0 && screenH > 0 -> minOf(screenW, screenH).toFloat()
+            screenW > 0 -> screenW.toFloat()
+            screenH > 0 -> screenH.toFloat()
+            else -> 0f
+        }
+        val slack = if (shortSide > 0f) {
+            minOf(64f, shortSide / 8f).coerceAtLeast(16f)
+        } else {
+            64f
+        }
+        return jump <= slack
+    }
+
+    /**
+     * Whether a getLocationOnScreen vs LayoutParams pair is a trustworthy
+     * layout-to-screen offset. Reject a zero-size view, a (0, 0) location
+     * while params are not near the origin, or an implied offset that is
+     * implausible for a system overlay (larger than a generous inset cap,
+     * or a location already off the current screen — typical of a stale
+     * sample taken mid-rotation).
+     */
+    fun isPlausibleLayoutOffset(
+        locationX: Int,
+        locationY: Int,
+        paramsX: Int,
+        paramsY: Int,
+        viewWidth: Int,
+        viewHeight: Int,
+        screenW: Int,
+        screenH: Int,
+        originSlackPx: Int = 16
+    ): Boolean {
+        if (viewWidth <= 0 || viewHeight <= 0) return false
+        if (!isUsableLocationOnScreen(
+                locationX, locationY, paramsX, paramsY, viewWidth, viewHeight, originSlackPx
+            )
+        ) {
+            return false
+        }
+        val ox = locationX - paramsX
+        val oy = locationY - paramsY
+        val shortSide = when {
+            screenW > 0 && screenH > 0 -> minOf(screenW, screenH)
+            screenW > 0 -> screenW
+            screenH > 0 -> screenH
+            else -> 0
+        }
+        val cap = maxOf(400, shortSide / 4).coerceAtLeast(400)
+        if (ox < -64 || oy < -64) return false
+        if (ox > cap || oy > cap) return false
+        if (screenW > 0 && screenH > 0) {
+            if (locationX < -viewWidth || locationY < -viewHeight) return false
+            if (locationX > screenW || locationY > screenH) return false
+        }
+        return true
+    }
+
+    /**
      * Keep as much of a [barW] x [barH] window in the safe area as possible.
      * [centerX]/[centerY] and the result are in the same space as LayoutParams
      * (convert to/from screen with [offset]). [safeLeft]/[safeTop]/[safeRight]/
