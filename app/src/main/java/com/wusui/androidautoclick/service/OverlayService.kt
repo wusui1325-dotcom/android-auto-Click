@@ -87,6 +87,8 @@ class OverlayService : Service() {
     private var lastScreenW = 0
     private var lastScreenH = 0
     private var lastDensityDpi = 0
+    private var lastRotation = -1
+    private var lastToastedError = ""
     private var displayManager: DisplayManager? = null
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
@@ -115,8 +117,8 @@ class OverlayService : Service() {
         isRunning = true
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
-        displayManager?.registerDisplayListener(displayListener, mainHandler)
         rememberScreen()
+        displayManager?.registerDisplayListener(displayListener, mainHandler)
         startFg()
         observeJob = scope?.launch {
             combine(
@@ -126,7 +128,11 @@ class OverlayService : Service() {
                 AppStore.barSize,
                 ClickEngine.status
             ) { _, _, _, _, _ -> }
-                .collect { markersDirty = true; rebuildBarIfNeeded() }
+                .collect {
+                    markersDirty = true
+                    rebuildBarIfNeeded()
+                    toastEngineError()
+                }
         }
         scope?.launch {
             var langReady = false
@@ -151,20 +157,25 @@ class OverlayService : Service() {
         lastScreenW = sw
         lastScreenH = sh
         lastDensityDpi = resources.displayMetrics.densityDpi
+        lastRotation = ScreenMetrics.rotation(this)
     }
 
     /**
-     * Orientation, size, or density changed. Reset X/Y calibration, clamp the
-     * control bar on-screen, refresh markers at their stored screen pixels
-     * (do not remap scheme coordinates), and dismiss popups that would be off-screen.
+     * Orientation, size, density, or [Display] rotation changed (including
+     * 180° / left-right landscape flips where width and height stay the same).
+     * Reset X/Y calibration, clamp the control bar into the cutout-safe area,
+     * refresh markers at their stored screen pixels (do not remap scheme
+     * coordinates), and dismiss popups that would be off-screen.
      */
     private fun handleDisplayChanged() {
         val (sw, sh) = screenSize()
         val dpi = resources.displayMetrics.densityDpi
-        if (sw == lastScreenW && sh == lastScreenH && dpi == lastDensityDpi) return
+        val rot = ScreenMetrics.rotation(this)
+        if (sw == lastScreenW && sh == lastScreenH && dpi == lastDensityDpi && rot == lastRotation) return
         lastScreenW = sw
         lastScreenH = sh
         lastDensityDpi = dpi
+        lastRotation = rot
         layoutOffset = LayoutOffset()
         offsetCalibrated = false
         RootClickBackend.notifyScreenSize(sw, sh)
@@ -196,6 +207,11 @@ class OverlayService : Service() {
                 if (first || next != layoutOffset) {
                     layoutOffset = next
                     offsetCalibrated = true
+                    val bv = barView
+                    val bp = barParams
+                    if (bv != null && bp != null) {
+                        applyBarCenter(bv, bp)
+                    }
                     if (first) markersDirty = true
                 }
             } catch (_: Exception) {
@@ -326,8 +342,13 @@ class OverlayService : Service() {
         barW = w
         barH = h
         val (sw, sh) = screenSize()
+        val cutout = ScreenMetrics.cutoutInsets(this)
         val (cx, cy) = OverlayGeometry.clampBarCenter(
-            barCenterX, barCenterY, w, h, sw, sh, layoutOffset
+            barCenterX, barCenterY, w, h, sw, sh, layoutOffset,
+            safeLeft = cutout.left,
+            safeTop = cutout.top,
+            safeRight = cutout.right,
+            safeBottom = cutout.bottom
         )
         barCenterX = cx
         barCenterY = cy
@@ -425,6 +446,7 @@ class OverlayService : Service() {
             if (st.running) s(R.string.action_stop) else s(R.string.action_start)
         ) {
             ClickEngine.toggle(fromOverlay = true)
+            toastEngineError()
             rebuildBar(animated = false)
         }
 
@@ -455,6 +477,7 @@ class OverlayService : Service() {
                         if (st.recording) s(R.string.action_record_stop) else s(R.string.action_record)
                     ) {
                         ClickEngine.toggleRecording()
+                        toastEngineError()
                         rebuildBar(animated = false)
                         markersDirty = true
                     }
@@ -1061,6 +1084,15 @@ class OverlayService : Service() {
                 })
             }
         }
+    }
+
+    private fun toastEngineError() {
+        val err = ClickEngine.status.value.lastError
+        if (err.isNotBlank() && err != lastToastedError) {
+            lastToastedError = err
+            toast(err)
+        }
+        if (err.isBlank()) lastToastedError = ""
     }
 
     private fun toast(msg: String) {

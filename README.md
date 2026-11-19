@@ -1,4 +1,4 @@
-# AutoClick 3.0.8
+# AutoClick 3.0.9
 
 免廣告、最簡潔的 Android 自動點擊／連點器。UI 採 iOS Settings 黑白平面風格。介面以繁體中文為主，並內建簡體中文與 English。
 
@@ -11,6 +11,15 @@
 - 序列錄製（見限制）與手動加點
 - 應用內切換繁體／简体／English
 - 可選 Root 點擊方式（預設關閉，見下）
+
+## 3.0.9
+
+- 修正橫屏與 Root 點擊校正：螢幕尺寸改以目前 Display 的即時大小為準（不再先讀可能停留在直屏的 WindowMetrics／Application 設定），已在橫屏時授權 Root 也會用對的範圍去 CONFIG uinput。
+- 左右橫屏對調或 180° 翻轉（寬高不變）也會重新校正偏移；控制列在校正後會依實際偏移再夾回螢幕，並避開劉海／鏡頭安全區。
+- 懸浮列上播放／錄製失敗會跳出錯誤（例如 Root 模式未開無障礙卻按錄製）。
+- Root 更新螢幕尺寸失敗會重試，再不行就結束工作階段並報錯，不會默默沿用舊的座標範圍；helper 的 stderr 不再混進 TAP／SWIPE／CONFIG 協議。
+
+本版本未在真機上操作驗證（無裝置實測）。
 
 ## 3.0.8
 
@@ -62,6 +71,8 @@ ANDROID_NDK_HOME=/path/to/ndk ./native/build.sh
 ```
 
 ## 版本
+
+**3.0.9**（versionCode 40）— 修正橫屏／Root 座標與懸浮列錯誤提示（即時 Display 尺寸、180° 翻轉校正、劉海安全區、CONFIG 失敗可見、協議與 stderr 分離）。
 
 **3.0.8**（versionCode 39）— 橫屏／旋轉校正（雙軸偏移、控制列限制在畫面內、彈窗限高）；可選 Root 點擊方式（uinput 快路徑）。
 

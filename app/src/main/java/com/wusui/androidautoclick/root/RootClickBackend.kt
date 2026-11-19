@@ -51,6 +51,7 @@ object RootClickBackend {
     private const val GRANT_TIMEOUT_MS = 60_000L
     private const val QUICK_RESTART_MS = 4_000L
     private const val IO_TIMEOUT_PAD_MS = 3_000L
+    private const val CONFIG_TIMEOUT_MS = 8_000L
 
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor { r ->
@@ -145,14 +146,35 @@ object RootClickBackend {
 
     fun notifyScreenSize(width: Int, height: Int) {
         if (width == lastW && height == lastH) return
-        lastW = width
-        lastH = height
-        if (!isReady() || useFallback) return
+        // input fallback uses the current display; no CONFIG to send.
+        if (!isReady() || useFallback) {
+            lastW = width
+            lastH = height
+            return
+        }
         io.execute {
             synchronized(sessionLock) {
-                val h = helper
-                if (h != null && h.isAlive()) {
-                    h.sendAndWait(RootProtocol.config(width, height), IO_TIMEOUT_PAD_MS)
+                if (width == lastW && height == lastH) return@synchronized
+                val h = helper?.takeIf { it.isAlive() }
+                if (h == null) {
+                    lastW = width
+                    lastH = height
+                    return@synchronized
+                }
+                val cmd = RootProtocol.config(width, height)
+                var ok = RootProtocol.isOk(h.sendAndWait(cmd, CONFIG_TIMEOUT_MS))
+                if (!ok && h.isAlive()) {
+                    ok = RootProtocol.isOk(h.sendAndWait(cmd, CONFIG_TIMEOUT_MS))
+                }
+                if (ok) {
+                    lastW = width
+                    lastH = height
+                } else {
+                    // Do not bump lastW/lastH (so a later notify can retry this size).
+                    // Drop the session so playback stops visibly instead of
+                    // injecting against a stale uinput ABS range.
+                    closeSessionsLocked()
+                    _status.value = if (findSu() != null) RootStatus.NEED_GRANT else RootStatus.NOT_DETECTED
                 }
             }
         }
@@ -268,9 +290,8 @@ object RootClickBackend {
         val commandCandidates = listOf(HELPER_REMOTE, local)
         for (cmd in commandCandidates) {
             val proc = try {
-                ProcessBuilder(suPath, "-c", cmd)
-                    .redirectErrorStream(true)
-                    .start()
+                // Keep stderr separate from the OK/ERR line protocol.
+                ProcessBuilder(suPath, "-c", cmd).start()
             } catch (e: Exception) {
                 Log.w(TAG, "helper start failed for $cmd", e)
                 continue
@@ -302,9 +323,8 @@ object RootClickBackend {
 
     private fun openSu(suPath: String, timeoutMs: Long): LineSession? {
         val proc = try {
-            ProcessBuilder(suPath)
-                .redirectErrorStream(true)
-                .start()
+            // Keep su warnings off the marked stdout protocol.
+            ProcessBuilder(suPath).start()
         } catch (_: Exception) {
             return null
         }
@@ -415,6 +435,19 @@ object RootClickBackend {
                 }
                 try { lines.put(poison) } catch (_: Exception) {}
             }, "root-click-read").apply { isDaemon = true; start() }
+            // Drain stderr so the process cannot block, but never mix it into the protocol.
+            Thread({
+                try {
+                    BufferedReader(InputStreamReader(process.errorStream, StandardCharsets.UTF_8)).use { r ->
+                        var line = r.readLine()
+                        while (line != null) {
+                            if (line.isNotBlank()) Log.w(TAG, line)
+                            line = r.readLine()
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }, "root-click-stderr").apply { isDaemon = true; start() }
         }
 
         fun isAlive(): Boolean = process.isAlive
@@ -422,13 +455,13 @@ object RootClickBackend {
         fun sendAndWait(command: String, timeoutMs: Long): String? {
             if (!process.isAlive) return null
             return try {
-                if (markerMode) sendMarked(command, timeoutMs) else sendDirect(command, timeoutMs)
+                if (markerMode) sendMarked(command, timeoutMs) else waitForProtocol(command, timeoutMs)
             } catch (_: Exception) {
                 null
             }
         }
 
-        /** Direct protocol: skip su banners until OK/ERR. */
+        /** Direct protocol: skip su banners until OK/ERR. Used for every helper command. */
         fun waitForProtocol(command: String, timeoutMs: Long): String? {
             if (!process.isAlive) return null
             return try {
@@ -443,11 +476,6 @@ object RootClickBackend {
             } catch (_: Exception) {
                 null
             }
-        }
-
-        private fun sendDirect(command: String, timeoutMs: Long): String? {
-            writeLine(command)
-            return readLineTimeout(timeoutMs)
         }
 
         private fun sendMarked(command: String, timeoutMs: Long): String? {

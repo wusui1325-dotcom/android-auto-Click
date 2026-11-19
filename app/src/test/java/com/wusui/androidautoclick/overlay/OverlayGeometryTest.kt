@@ -157,4 +157,93 @@ class OverlayGeometryTest {
         assertTrue(layout.maxHeight >= (2400 * 0.70f).toInt() - 1)
         assertTrue(layout.y + layout.maxHeight < 2400)
     }
+
+    @Test
+    fun preferLiveSize_usesDisplayEvenIfFallbackIsPortrait() {
+        // Application window metrics often stay 1080x2400 after a landscape rotate.
+        val (w, h) = OverlayGeometry.preferLiveSize(2400, 1080, 1080, 2400)
+        assertEquals(2400, w)
+        assertEquals(1080, h)
+    }
+
+    @Test
+    fun preferLiveSize_fallsBackWhenDisplayUnavailable() {
+        val (w, h) = OverlayGeometry.preferLiveSize(0, 0, 1080, 2400)
+        assertEquals(1080, w)
+        assertEquals(2400, h)
+    }
+
+    @Test
+    fun preferLiveSize_lastResortIsOneByOne() {
+        assertEquals(1 to 1, OverlayGeometry.preferLiveSize(0, -1, 0, 0))
+    }
+
+    @Test
+    fun clampBarCenter_leftCutoutPinsBarOutOfNotch() {
+        val (cx, cy) = OverlayGeometry.clampBarCenter(
+            centerX = 40f,
+            centerY = 200f,
+            barW = 100,
+            barH = 40,
+            screenW = 2400,
+            screenH = 1080,
+            safeLeft = 80
+        )
+        // origin pinned to 80, center = 80 + 50
+        assertEquals(130f, cx)
+        assertEquals(200f, cy)
+        assertTrue(cx - 50f >= 80f - 0.01f)
+    }
+
+    @Test
+    fun clampBarCenter_rightCutoutKeepsBarOffCamera() {
+        val (cx, _) = OverlayGeometry.clampBarCenter(
+            centerX = 2390f,
+            centerY = 200f,
+            barW = 100,
+            barH = 40,
+            screenW = 2400,
+            screenH = 1080,
+            safeRight = 80
+        )
+        // origin max = 2400 - 80 - 100 = 2220, center = 2270
+        assertEquals(2270f, cx)
+        assertTrue(cx + 50f <= 2400f - 80f + 0.01f)
+    }
+
+    @Test
+    fun clampBarCenter_accountsForLayoutOffsetAndCutout() {
+        val offset = LayoutOffset(x = 0, y = 48)
+        val (cx, cy) = OverlayGeometry.clampBarCenter(
+            centerX = 100f,
+            centerY = 2000f,
+            barW = 100,
+            barH = 50,
+            screenW = 800,
+            screenH = 360,
+            offset = offset,
+            safeTop = 20,
+            safeBottom = 20
+        )
+        val visY = cy + offset.y
+        assertTrue(visY - 25f >= 20f - 0.01f)
+        assertTrue(visY + 25f <= 360f - 20f + 0.01f)
+        assertEquals(100f, cx)
+    }
+
+    @Test
+    fun clampBarCenter_barWiderThanSafeAreaPinsToSafeLeft() {
+        val (cx, _) = OverlayGeometry.clampBarCenter(
+            centerX = 400f,
+            centerY = 100f,
+            barW = 2000,
+            barH = 40,
+            screenW = 1080,
+            screenH = 2400,
+            safeLeft = 80,
+            safeRight = 80
+        )
+        // origin pinned to 80, center = 80 + 1000
+        assertEquals(1080f, cx)
+    }
 }
