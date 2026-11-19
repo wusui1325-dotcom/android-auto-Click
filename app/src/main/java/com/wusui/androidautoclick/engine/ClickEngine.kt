@@ -6,6 +6,8 @@ import android.os.SystemClock
 import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
 import com.wusui.androidautoclick.i18n.LocaleHelper
+import com.wusui.androidautoclick.root.RootClickBackend
+import com.wusui.androidautoclick.root.RootStatus
 import com.wusui.androidautoclick.service.ClickAccessibilityService
 import com.wusui.androidautoclick.service.ClickNotification
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +17,9 @@ import kotlinx.coroutines.flow.update
 import kotlin.random.Random
 
 /**
- * Plays ordered TouchNodes in cycles. Gestures strictly serial via [GestureDispatcher].
+ * Plays ordered TouchNodes in cycles. Gestures strictly serial via
+ * [GestureDispatcher] (Accessibility) or [RootClickBackend] (optional root).
+ * Never silently falls back from a chosen Root backend to Accessibility.
  */
 object ClickEngine {
 
@@ -47,15 +51,26 @@ object ClickEngine {
         val end: TouchNode? = null // for drag
     )
 
+    private fun useRootBackend(): Boolean =
+        AppStore.clickBackend.value == ClickBackend.ROOT
+
     fun start(fromOverlay: Boolean = false): Boolean {
         if (_status.value.running) return true
         if (_status.value.recording) {
             setError(msg(R.string.err_stop_recording))
             return false
         }
-        val service = ClickAccessibilityService.instance
-        if (service == null) {
-            setError(msg(R.string.err_need_a11y))
+        val root = useRootBackend()
+        if (!root) {
+            if (ClickAccessibilityService.instance == null) {
+                setError(msg(R.string.err_need_a11y))
+                return false
+            }
+        } else if (RootClickBackend.status.value == RootStatus.NOT_DETECTED && !RootClickBackend.isReady()) {
+            setError(msg(R.string.err_root_missing))
+            return false
+        } else if (RootClickBackend.status.value == RootStatus.DENIED && !RootClickBackend.isReady()) {
+            setError(msg(R.string.err_root_denied))
             return false
         }
         val items = buildPlayList()
@@ -70,9 +85,37 @@ object ClickEngine {
         consecutiveFails = 0
         startElapsed = SystemClock.elapsedRealtime()
         dispatcher.reset()
+        RootClickBackend.resetQueue()
         _status.value = EngineStatus(running = true, message = msg(R.string.status_running), lastError = "")
         AppStore.appContext?.let { ClickNotification.showRunning(it, msg(R.string.status_running)) }
         val arm = if (fromOverlay) 160L else 0L
+        if (root && !RootClickBackend.isReady()) {
+            val ctx = AppStore.appContext
+            if (ctx == null) {
+                setError(msg(R.string.err_need_root))
+                stop()
+                return false
+            }
+            Thread({
+                val st = RootClickBackend.ensureReadyBlocking(ctx)
+                main.post {
+                    if (gen != generation || !_status.value.running) return@post
+                    when (st) {
+                        RootStatus.AUTHORIZED -> tick(gen)
+                        RootStatus.NOT_DETECTED -> {
+                            setError(msg(R.string.err_root_missing)); stop()
+                        }
+                        RootStatus.DENIED -> {
+                            setError(msg(R.string.err_root_denied)); stop()
+                        }
+                        RootStatus.NEED_GRANT -> {
+                            setError(msg(R.string.err_need_root)); stop()
+                        }
+                    }
+                }
+            }, "root-click-start").start()
+            return true
+        }
         if (arm > 0) main.postDelayed({ if (gen == generation) tick(gen) }, arm)
         else tick(gen)
         return true
@@ -82,6 +125,7 @@ object ClickEngine {
         val was = _status.value.running
         generation++
         dispatcher.reset()
+        RootClickBackend.resetQueue()
         main.removeCallbacksAndMessages(null)
         consecutiveFails = 0
         _status.update {
@@ -158,8 +202,12 @@ object ClickEngine {
 
     private fun tick(gen: Int) {
         if (gen != generation || !_status.value.running) return
-        val service = ClickAccessibilityService.instance
-        if (service == null) {
+        val root = useRootBackend()
+        if (root) {
+            if (!RootClickBackend.isReady()) {
+                setError(msg(R.string.err_root_disconnected)); stop(); return
+            }
+        } else if (ClickAccessibilityService.instance == null) {
             setError(msg(R.string.err_a11y_disconnected)); stop(); return
         }
         val params = AppStore.params.value
@@ -201,22 +249,21 @@ object ClickEngine {
             item.node.kind == NodeKind.DRAG_START && item.end != null -> {
                 val (x1, y1) = jitter(item.node.x, item.node.y, params)
                 val (x2, y2) = jitter(item.end.x, item.end.y, params)
-                dispatcher.swipe(service, x1, y1, x2, y2, params.swipeDurationMs) { ok ->
-                    if (gen != generation) return@swipe
-                    if (!okResult(ok)) return@swipe
+                injectSwipe(x1, y1, x2, y2, params.swipeDurationMs) { ok ->
+                    if (gen != generation) return@injectSwipe
+                    if (!okResult(ok)) return@injectSwipe
                     bumpAction()
                     scheduleAfter(gen, gapAfter)
                 }
             }
             else -> {
-                runClicks(gen, service, item.node, params, 0, gapAfter)
+                runClicks(gen, item.node, params, 0, gapAfter)
             }
         }
     }
 
     private fun runClicks(
         gen: Int,
-        service: android.accessibilityservice.AccessibilityService,
         node: TouchNode,
         params: GlobalParams,
         done: Int,
@@ -228,14 +275,47 @@ object ClickEngine {
             return
         }
         val (x, y) = jitter(node.x, node.y, params)
-        dispatcher.click(service, x, y, node.tapDurationMs.coerceAtLeast(1L)) { ok ->
-            if (gen != generation) return@click
-            if (!okResult(ok)) return@click
+        injectClick(x, y, node.tapDurationMs.coerceAtLeast(1L)) { ok ->
+            if (gen != generation) return@injectClick
+            if (!okResult(ok)) return@injectClick
             bumpAction()
-            // No extra delay: GestureDispatcher is already strictly serial.
-            // Next tap / interval waits only for onCompleted + gapAfter.
-            runClicks(gen, service, node, params, done + 1, gapAfter)
+            // No extra delay: injectors are strictly serial.
+            // Next tap / interval waits only for completion + gapAfter.
+            runClicks(gen, node, params, done + 1, gapAfter)
         }
+    }
+
+    private fun injectClick(x: Float, y: Float, durationMs: Long, onDone: (Boolean) -> Unit) {
+        if (useRootBackend()) {
+            RootClickBackend.click(x, y, durationMs, onDone)
+            return
+        }
+        val service = ClickAccessibilityService.instance
+        if (service == null) {
+            onDone(false)
+            return
+        }
+        dispatcher.click(service, x, y, durationMs, onDone)
+    }
+
+    private fun injectSwipe(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        durationMs: Long,
+        onDone: (Boolean) -> Unit
+    ) {
+        if (useRootBackend()) {
+            RootClickBackend.swipe(x1, y1, x2, y2, durationMs, onDone)
+            return
+        }
+        val service = ClickAccessibilityService.instance
+        if (service == null) {
+            onDone(false)
+            return
+        }
+        dispatcher.swipe(service, x1, y1, x2, y2, durationMs, onDone)
     }
 
     private fun scheduleAfter(gen: Int, gap: Long) {
@@ -262,7 +342,9 @@ object ClickEngine {
             return true
         }
         consecutiveFails++
-        setError(msg(R.string.err_gesture_failed))
+        setError(
+            msg(if (useRootBackend()) R.string.err_root_inject else R.string.err_gesture_failed)
+        )
         stop()
         return false
     }

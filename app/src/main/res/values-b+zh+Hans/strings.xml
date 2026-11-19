@@ -121,4 +121,29 @@
     <string name="err_a11y_disconnected">无障碍服务已断开</string>
     <string name="status_cycle_order">循环 %1$d · 序 %2$d</string>
     <string name="err_gesture_failed">手势失败（触控打断或无障碍已断）</string>
+
+    <!-- 3.0.8 landscape + root mode -->
+    <string name="section_click_method">点击方式</string>
+    <string name="click_method_a11y">无障碍（默认）</string>
+    <string name="click_method_a11y_sub">以系统手势播放点击与滑动</string>
+    <string name="click_method_root">Root</string>
+    <string name="click_method_root_sub">以 Root 注入点击／滑动（仍须悬浮窗）</string>
+    <string name="root_status_not_detected">未检测到</string>
+    <string name="root_status_need_grant">需要授权</string>
+    <string name="root_status_authorized">已授权</string>
+    <string name="root_status_denied">被拒绝</string>
+    <string name="root_grant_action">去授权</string>
+    <string name="root_record_hint">录制序列仍需开启无障碍（依赖系统点击事件）。Root 只负责播放点击与滑动。</string>
+    <string name="start_need_overlay">请先开启悬浮窗</string>
+    <string name="start_need_root">请先完成 Root 授权，或改回无障碍</string>
+    <string name="start_ready_root_sub">Root 已授权，选择单点／多点／录制（录制另需无障碍）</string>
+    <string name="session_record_sub_root">录制仍需无障碍（游戏自绘通常录不到，可手动加点）</string>
+    <string name="a11y_on_root_mode">已开启（录制需要；播放可用 Root）</string>
+    <string name="a11y_off_root_mode">播放可用 Root；录制请开启无障碍</string>
+    <string name="toast_points_offscreen">有 %1$d 个触控点在当前画面外（旋转后不会自动搬家）</string>
+    <string name="err_need_root">尚未取得 Root 授权，无法以 Root 模式点击</string>
+    <string name="err_root_missing">未检测到 Root（su）</string>
+    <string name="err_root_denied">Root 授权被拒绝</string>
+    <string name="err_root_inject">Root 点击失败</string>
+    <string name="err_root_disconnected">Root 连接已中断</string>
 </resources>

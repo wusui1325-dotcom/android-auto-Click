@@ -121,4 +121,29 @@
     <string name="err_a11y_disconnected">Accessibility disconnected</string>
     <string name="status_cycle_order">Cycle %1$d · # %2$d</string>
     <string name="err_gesture_failed">Gesture failed (interrupted or Accessibility off)</string>
+
+    <!-- 3.0.8 landscape + root mode -->
+    <string name="section_click_method">Click method</string>
+    <string name="click_method_a11y">Accessibility (default)</string>
+    <string name="click_method_a11y_sub">Play taps and swipes with system gestures</string>
+    <string name="click_method_root">Root</string>
+    <string name="click_method_root_sub">Inject taps and swipes via root (overlay still required)</string>
+    <string name="root_status_not_detected">Not detected</string>
+    <string name="root_status_need_grant">Authorization needed</string>
+    <string name="root_status_authorized">Authorized</string>
+    <string name="root_status_denied">Denied</string>
+    <string name="root_grant_action">Authorize</string>
+    <string name="root_record_hint">Recording still needs Accessibility (it relies on system click events). Root is only used to play taps and swipes.</string>
+    <string name="start_need_overlay">Enable the overlay permission first</string>
+    <string name="start_need_root">Grant root, or switch back to Accessibility</string>
+    <string name="start_ready_root_sub">Root authorized. Choose single / multi / record (recording still needs Accessibility)</string>
+    <string name="session_record_sub_root">Recording still needs Accessibility (manually add points for custom-drawn games)</string>
+    <string name="a11y_on_root_mode">On (needed to record; playback can use root)</string>
+    <string name="a11y_off_root_mode">Playback can use root; enable Accessibility to record</string>
+    <string name="toast_points_offscreen">%1$d touch point(s) are outside the current screen (points are not remapped after rotation)</string>
+    <string name="err_need_root">Root is not authorized, so root-mode clicking cannot start</string>
+    <string name="err_root_missing">Root (su) was not detected</string>
+    <string name="err_root_denied">Root authorization was denied</string>
+    <string name="err_root_inject">Root click failed</string>
+    <string name="err_root_disconnected">Root connection was lost</string>
 </resources>

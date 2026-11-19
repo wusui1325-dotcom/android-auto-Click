@@ -3,7 +3,9 @@ package com.wusui.androidautoclick.service
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.Color
+import android.hardware.display.DisplayManager
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -31,6 +33,10 @@ import androidx.core.app.ServiceCompat
 import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
 import com.wusui.androidautoclick.i18n.LocaleHelper
+import com.wusui.androidautoclick.overlay.LayoutOffset
+import com.wusui.androidautoclick.overlay.OverlayGeometry
+import com.wusui.androidautoclick.overlay.ScreenMetrics
+import com.wusui.androidautoclick.root.RootClickBackend
 import com.wusui.androidautoclick.engine.ClickEngine
 import com.wusui.androidautoclick.engine.NodeKind
 import com.wusui.androidautoclick.engine.SessionType
@@ -71,13 +77,24 @@ class OverlayService : Service() {
     private var barAnimating = false
     private val markers = mutableMapOf<String, Pair<View, WindowManager.LayoutParams>>()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var layoutToScreenOffsetY = 0
+    private var layoutOffset = LayoutOffset()
     private var offsetCalibrated = false
     private var draggingMarker = false
     private var markersDirty = true
     private var popupView: View? = null
     private var scope: CoroutineScope? = null
     private var observeJob: Job? = null
+    private var lastScreenW = 0
+    private var lastScreenH = 0
+    private var lastDensityDpi = 0
+    private var displayManager: DisplayManager? = null
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {}
+        override fun onDisplayChanged(displayId: Int) {
+            mainHandler.post { handleDisplayChanged() }
+        }
+    }
 
     private val pulse = object : Runnable {
         override fun run() {
@@ -97,6 +114,9 @@ class OverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         isRunning = true
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
+        displayManager?.registerDisplayListener(displayListener, mainHandler)
+        rememberScreen()
         startFg()
         observeJob = scope?.launch {
             combine(
@@ -117,6 +137,68 @@ class OverlayService : Service() {
                 lastBarKey = ""
                 rebuildBar(animated = true)
                 dismissPopup()
+            }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        handleDisplayChanged()
+    }
+
+    private fun rememberScreen() {
+        val (sw, sh) = screenSize()
+        lastScreenW = sw
+        lastScreenH = sh
+        lastDensityDpi = resources.displayMetrics.densityDpi
+    }
+
+    /**
+     * Orientation, size, or density changed. Reset X/Y calibration, clamp the
+     * control bar on-screen, refresh markers at their stored screen pixels
+     * (do not remap scheme coordinates), and dismiss popups that would be off-screen.
+     */
+    private fun handleDisplayChanged() {
+        val (sw, sh) = screenSize()
+        val dpi = resources.displayMetrics.densityDpi
+        if (sw == lastScreenW && sh == lastScreenH && dpi == lastDensityDpi) return
+        lastScreenW = sw
+        lastScreenH = sh
+        lastDensityDpi = dpi
+        layoutOffset = LayoutOffset()
+        offsetCalibrated = false
+        RootClickBackend.notifyScreenSize(sw, sh)
+        val bv = barView
+        val bp = barParams
+        if (bv != null && bp != null) {
+            applyBarCenter(bv, bp)
+        }
+        dismissPopup()
+        markersDirty = true
+        if (!draggingMarker) {
+            refreshMarkers()
+        }
+        val outside = OverlayGeometry.countPointsOutside(
+            AppStore.orderedNodes().map { it.x to it.y },
+            com.wusui.androidautoclick.overlay.ScreenSize(sw, sh)
+        )
+        if (outside > 0) toast(s(R.string.toast_points_offscreen, outside))
+    }
+
+    private fun calibrateFrom(view: View, params: WindowManager.LayoutParams) {
+        view.post {
+            try {
+                if (view.windowToken == null) return@post
+                val loc = IntArray(2)
+                view.getLocationOnScreen(loc)
+                val next = OverlayGeometry.offsetFromLocation(loc[0], loc[1], params.x, params.y)
+                val first = !offsetCalibrated
+                if (first || next != layoutOffset) {
+                    layoutOffset = next
+                    offsetCalibrated = true
+                    if (first) markersDirty = true
+                }
+            } catch (_: Exception) {
             }
         }
     }
@@ -142,10 +224,10 @@ class OverlayService : Service() {
                     } catch (_: Exception) {
                         SessionType.SINGLE
                     }
-                    AppStore.beginSession(type)
+                    AppStore.beginSession(type, metricsContext = this)
                 }
                 if (!AppStore.sessionOpen.value) {
-                    AppStore.beginSession(SessionType.SINGLE)
+                    AppStore.beginSession(SessionType.SINGLE, metricsContext = this)
                 }
                 showBar()
                 markersDirty = true
@@ -193,14 +275,7 @@ class OverlayService : Service() {
         }
     }
 
-    private fun screenSize(): Pair<Int, Int> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val b = windowManager.currentWindowMetrics.bounds
-            b.width() to b.height()
-        } else {
-            @Suppress("DEPRECATION")
-            resources.displayMetrics.widthPixels to resources.displayMetrics.heightPixels
-        }
+    private fun screenSize(): Pair<Int, Int> = ScreenMetrics.realSize(this)
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -250,6 +325,12 @@ class OverlayService : Service() {
         }
         barW = w
         barH = h
+        val (sw, sh) = screenSize()
+        val (cx, cy) = OverlayGeometry.clampBarCenter(
+            barCenterX, barCenterY, w, h, sw, sh, layoutOffset
+        )
+        barCenterX = cx
+        barCenterY = cy
         params.x = (barCenterX - w / 2f).toInt()
         params.y = (barCenterY - h / 2f).toInt()
         try {
@@ -441,6 +522,7 @@ class OverlayService : Service() {
             host.post {
                 if (host.width > 0) { barW = host.width; barH = host.height }
                 applyBarCenter(host, lp)
+                calibrateFrom(host, lp)
                 if (enterAnim) {
                     host.animate().cancel()
                     host.animate()
@@ -645,9 +727,11 @@ class OverlayService : Service() {
             })
         }
 
+        val half = size / 2f
         val params = baseLp(size, size).apply {
-            x = (node.x - size / 2f).toInt()
-            y = (node.y - size / 2f - layoutToScreenOffsetY).toInt()
+            val (px, py) = OverlayGeometry.paramsFromScreen(node.x, node.y, half, layoutOffset)
+            x = px
+            y = py
             if (locked) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
 
@@ -701,11 +785,10 @@ class OverlayService : Service() {
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         mainHandler.removeCallbacks(longRun)
                         if (moved) {
-                            AppStore.moveNode(
-                                node.id,
-                                params.x + size / 2f,
-                                params.y + size / 2f + layoutToScreenOffsetY
+                            val (sx, sy) = OverlayGeometry.screenFromParams(
+                                params.x, params.y, half, layoutOffset
                             )
+                            AppStore.moveNode(node.id, sx, sy)
                         }
                         draggingMarker = false
                         // Tap: delete-mode only. Long-press opens adjust.
@@ -725,16 +808,7 @@ class OverlayService : Service() {
             windowManager.addView(wrap, params)
             markers[node.id] = wrap to params
             if (!offsetCalibrated) {
-                wrap.post {
-                    try {
-                        val loc = IntArray(2)
-                        wrap.getLocationOnScreen(loc)
-                        layoutToScreenOffsetY = loc[1] - params.y
-                        offsetCalibrated = true
-                        markersDirty = true
-                    } catch (_: Exception) {
-                    }
-                }
+                calibrateFrom(wrap, params)
             }
         } catch (_: Exception) {
         }
@@ -774,13 +848,33 @@ class OverlayService : Service() {
             setOnClickListener { dismissPopup() }
         })
         val (sw, sh) = screenSize()
-        val lp = baseLp((sw * 0.82f).toInt(), WindowManager.LayoutParams.WRAP_CONTENT, focusable = true).apply {
-            x = (sw * 0.09f).toInt()
-            y = (sh * 0.22f).toInt()
+        val layout = OverlayGeometry.panelLayout(sw, sh, minMargin = dp(8))
+        card.measure(
+            View.MeasureSpec.makeMeasureSpec(layout.width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(layout.maxHeight, View.MeasureSpec.AT_MOST)
+        )
+        val contentHeight = card.measuredHeight.coerceAtLeast(1).coerceAtMost(layout.maxHeight)
+        val content: View = if (card.measuredHeight > layout.maxHeight) {
+            ScrollView(this).apply {
+                isVerticalScrollBarEnabled = true
+                addView(
+                    card,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT
+                    )
+                )
+            }
+        } else {
+            card
+        }
+        val lp = baseLp(layout.width, contentHeight, focusable = true).apply {
+            x = layout.x
+            y = layout.y
         }
         try {
-            windowManager.addView(card, lp)
-            popupView = card
+            windowManager.addView(content, lp)
+            popupView = content
         } catch (_: Exception) {
             toast(s(R.string.toast_popup_fail, title))
         }
@@ -974,6 +1068,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        displayManager?.unregisterDisplayListener(displayListener)
+        displayManager = null
         observeJob?.cancel()
         scope?.cancel()
         dismissPopup()

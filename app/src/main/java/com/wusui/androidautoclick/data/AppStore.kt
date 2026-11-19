@@ -2,11 +2,13 @@ package com.wusui.androidautoclick.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.wusui.androidautoclick.engine.ClickBackend
 import com.wusui.androidautoclick.engine.GlobalParams
 import com.wusui.androidautoclick.engine.NodeKind
 import com.wusui.androidautoclick.engine.Scheme
 import com.wusui.androidautoclick.engine.SessionType
 import com.wusui.androidautoclick.engine.TouchNode
+import com.wusui.androidautoclick.overlay.ScreenMetrics
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +53,10 @@ object AppStore {
     private val _language = MutableStateFlow("zh-TW")
     val language: StateFlow<String> = _language.asStateFlow()
 
+    /** Click injection backend. Default is Accessibility; Root is opt-in. */
+    private val _clickBackend = MutableStateFlow(ClickBackend.ACCESSIBILITY)
+    val clickBackend: StateFlow<ClickBackend> = _clickBackend.asStateFlow()
+
     fun init(context: Context) {
         appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
@@ -60,7 +66,16 @@ object AppStore {
         _barSize.value = (prefs?.getInt("barSize", 1) ?: 1).coerceIn(0, 2)
         val savedLang = prefs?.getString("appLanguage", null)
         _language.value = com.wusui.androidautoclick.i18n.AppLang.fromTag(savedLang).tag
+        _clickBackend.value = parseBackend(prefs?.getString("clickBackend", null))
     }
+
+    fun setClickBackend(backend: ClickBackend) {
+        _clickBackend.value = backend
+        prefs?.edit()?.putString("clickBackend", backend.name)?.apply()
+    }
+
+    private fun parseBackend(raw: String?): ClickBackend =
+        if (raw == ClickBackend.ROOT.name) ClickBackend.ROOT else ClickBackend.ACCESSIBILITY
 
     fun setLanguage(tag: String) {
         val normalized = com.wusui.androidautoclick.i18n.AppLang.fromTag(tag).tag
@@ -85,20 +100,20 @@ object AppStore {
         prefs?.edit()?.putInt("barSize", s)?.apply()
     }
 
-    fun beginSession(type: SessionType) {
+    fun beginSession(type: SessionType, metricsContext: Context? = null) {
         _type.value = type
         _deleteMode.value = false
         _sessionOpen.value = true
         when (type) {
             SessionType.SINGLE -> {
-                val (cx, cy) = defaultCenter()
+                val (cx, cy) = defaultCenter(metricsContext)
                 val tap = _params.value.tapDurationMs.coerceAtLeast(1)
                 _nodes.value = listOf(
                     TouchNode(order = 1, x = cx, y = cy, intervalToNextMs = 200, clickCount = 1, tapDurationMs = tap)
                 )
             }
             SessionType.MULTI -> {
-                val (cx, cy) = defaultCenter()
+                val (cx, cy) = defaultCenter(metricsContext)
                 val tap = _params.value.tapDurationMs.coerceAtLeast(1)
                 _nodes.value = listOf(
                     TouchNode(order = 1, x = cx, y = cy, intervalToNextMs = 200, clickCount = 1, tapDurationMs = tap)
@@ -237,11 +252,14 @@ object AppStore {
     fun snapshotScheme(name: String = "目前"): Scheme =
         Scheme(name, _type.value, _nodes.value, _params.value)
 
-    private fun defaultCenter(): Pair<Float, Float> {
-        val dm = appContext?.resources?.displayMetrics
-        val w = dm?.widthPixels?.toFloat() ?: 540f
-        val h = dm?.heightPixels?.toFloat() ?: 960f
-        return w / 2f to h / 2f
+    private fun defaultCenter(metricsContext: Context? = null): Pair<Float, Float> {
+        val ctx = metricsContext ?: appContext ?: return 540f to 960f
+        return try {
+            val (w, h) = ScreenMetrics.realSize(ctx)
+            w / 2f to h / 2f
+        } catch (_: Exception) {
+            540f to 960f
+        }
     }
 
     private fun loadParams() {

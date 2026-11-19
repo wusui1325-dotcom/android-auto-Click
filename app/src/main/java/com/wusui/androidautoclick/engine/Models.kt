@@ -23,6 +23,8 @@ enum class SessionType {
     }
 }
 
+enum class ClickBackend { ACCESSIBILITY, ROOT }
+
 enum class NodeKind { CLICK, DRAG_START, DRAG_END }
 
 /**

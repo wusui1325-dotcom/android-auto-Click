@@ -41,9 +41,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wusui.androidautoclick.BuildConfig
 import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
+import com.wusui.androidautoclick.engine.ClickBackend
 import com.wusui.androidautoclick.engine.SessionType
 import com.wusui.androidautoclick.i18n.AppLang
 import com.wusui.androidautoclick.i18n.LocaleHelper
+import com.wusui.androidautoclick.root.RootClickBackend
+import com.wusui.androidautoclick.root.RootStatus
 import com.wusui.androidautoclick.service.OverlayService
 import com.wusui.androidautoclick.service.PermissionHelper
 import com.wusui.androidautoclick.ui.components.SectionLabel
@@ -88,8 +91,31 @@ private fun HomeScreen() {
     val barVertical by AppStore.barVertical.collectAsState()
     val barSize by AppStore.barSize.collectAsState()
     val language by AppStore.language.collectAsState()
-    val ready = a11y && overlay
+    val clickBackend by AppStore.clickBackend.collectAsState()
+    val rootStatus by RootClickBackend.status.collectAsState()
+    val rootBusy by RootClickBackend.busy.collectAsState()
+    val ready = overlay && when (clickBackend) {
+        ClickBackend.ACCESSIBILITY -> a11y
+        ClickBackend.ROOT -> rootStatus == RootStatus.AUTHORIZED
+    }
     val currentLang = AppLang.fromTag(language)
+    val startSubtitle = when {
+        !overlay && clickBackend == ClickBackend.ACCESSIBILITY && !a11y ->
+            stringResource(R.string.start_need_perm)
+        !overlay -> stringResource(R.string.start_need_overlay)
+        clickBackend == ClickBackend.ACCESSIBILITY && !a11y ->
+            stringResource(R.string.start_need_perm)
+        clickBackend == ClickBackend.ROOT && rootStatus != RootStatus.AUTHORIZED ->
+            stringResource(R.string.start_need_root)
+        clickBackend == ClickBackend.ROOT -> stringResource(R.string.start_ready_root_sub)
+        else -> stringResource(R.string.start_ready_sub)
+    }
+    val rootStatusLabel = when (rootStatus) {
+        RootStatus.NOT_DETECTED -> stringResource(R.string.root_status_not_detected)
+        RootStatus.NEED_GRANT -> stringResource(R.string.root_status_need_grant)
+        RootStatus.AUTHORIZED -> stringResource(R.string.root_status_authorized)
+        RootStatus.DENIED -> stringResource(R.string.root_status_denied)
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -97,6 +123,7 @@ private fun HomeScreen() {
             if (e == Lifecycle.Event.ON_RESUME) {
                 a11y = PermissionHelper.isAccessibilityEnabled(context)
                 overlay = PermissionHelper.canDrawOverlay(context)
+                RootClickBackend.refreshDetection()
             }
         }
         lifecycleOwner.lifecycle.addObserver(obs)
@@ -130,7 +157,14 @@ private fun HomeScreen() {
         SettingsCard {
             SettingsRow(
                 title = stringResource(R.string.a11y_title),
-                subtitle = if (a11y) stringResource(R.string.a11y_on) else stringResource(R.string.a11y_off_hint),
+                subtitle = when {
+                    clickBackend == ClickBackend.ROOT && a11y ->
+                        stringResource(R.string.a11y_on_root_mode)
+                    clickBackend == ClickBackend.ROOT && !a11y ->
+                        stringResource(R.string.a11y_off_root_mode)
+                    a11y -> stringResource(R.string.a11y_on)
+                    else -> stringResource(R.string.a11y_off_hint)
+                },
                 trailing = if (a11y) "✓" else stringResource(R.string.go_enable),
                 showArrow = !a11y,
                 onClick = { if (!a11y) PermissionHelper.openAccessibilitySettings(context) }
@@ -141,6 +175,39 @@ private fun HomeScreen() {
                 trailing = if (overlay) "✓" else stringResource(R.string.go_enable),
                 showArrow = !overlay,
                 onClick = { if (!overlay) PermissionHelper.openOverlaySettings(context) }
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+
+        SectionLabel(stringResource(R.string.section_click_method))
+        SettingsCard {
+            val a11ySelected = clickBackend == ClickBackend.ACCESSIBILITY
+            SettingsRow(
+                title = stringResource(R.string.click_method_a11y),
+                subtitle = stringResource(R.string.click_method_a11y_sub),
+                trailing = if (a11ySelected) "✓" else "",
+                showArrow = !a11ySelected,
+                onClick = { AppStore.setClickBackend(ClickBackend.ACCESSIBILITY) }
+            )
+            val rootSelected = clickBackend == ClickBackend.ROOT
+            SettingsRow(
+                title = stringResource(R.string.click_method_root),
+                subtitle = stringResource(R.string.click_method_root_sub),
+                trailing = when {
+                    rootBusy -> "…"
+                    rootSelected && rootStatus == RootStatus.AUTHORIZED -> "✓"
+                    else -> rootStatusLabel
+                },
+                showArrow = !rootSelected || rootStatus != RootStatus.AUTHORIZED,
+                onClick = {
+                    AppStore.setClickBackend(ClickBackend.ROOT)
+                    if (rootStatus != RootStatus.AUTHORIZED && !rootBusy) {
+                        RootClickBackend.requestAccess(context)
+                    }
+                }
+            )
+            SettingsRow(
+                title = stringResource(R.string.root_record_hint)
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -206,7 +273,7 @@ private fun HomeScreen() {
             } else {
                 SettingsRow(
                     title = stringResource(R.string.start_autoc_title),
-                    subtitle = if (ready) stringResource(R.string.start_ready_sub) else stringResource(R.string.start_need_perm),
+                    subtitle = startSubtitle,
                     trailing = stringResource(R.string.start),
                     showArrow = true,
                     onClick = {
@@ -227,7 +294,10 @@ private fun HomeScreen() {
                         subtitle = when (type) {
                             SessionType.SINGLE -> stringResource(R.string.session_single_sub)
                             SessionType.MULTI -> stringResource(R.string.session_multi_sub)
-                            SessionType.RECORD -> stringResource(R.string.session_record_sub)
+                            SessionType.RECORD -> stringResource(
+                                if (clickBackend == ClickBackend.ROOT) R.string.session_record_sub_root
+                                else R.string.session_record_sub
+                            )
                         },
                         showArrow = true,
                         onClick = {
