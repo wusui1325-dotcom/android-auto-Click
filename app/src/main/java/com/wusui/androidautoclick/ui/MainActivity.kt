@@ -1,12 +1,17 @@
 package com.wusui.androidautoclick.ui
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -88,12 +93,16 @@ private fun HomeScreen() {
     var a11y by remember { mutableStateOf(PermissionHelper.isAccessibilityEnabled(context)) }
     var overlay by remember { mutableStateOf(PermissionHelper.canDrawOverlay(context)) }
     var pickType by remember { mutableStateOf(false) }
+    val overlayRunning by OverlayService.runningFlow.collectAsState()
     val barVertical by AppStore.barVertical.collectAsState()
     val barSize by AppStore.barSize.collectAsState()
     val language by AppStore.language.collectAsState()
     val clickBackend by AppStore.clickBackend.collectAsState()
     val rootStatus by RootClickBackend.status.collectAsState()
     val rootBusy by RootClickBackend.busy.collectAsState()
+    val notifLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Notification permission is optional; overlay still runs either way. */ }
     val ready = overlay && when (clickBackend) {
         ClickBackend.ACCESSIBILITY -> a11y
         ClickBackend.ROOT -> rootStatus == RootStatus.AUTHORIZED
@@ -258,7 +267,7 @@ private fun HomeScreen() {
 
         SectionLabel(stringResource(R.string.section_start))
         SettingsCard {
-            if (OverlayService.isRunning) {
+            if (overlayRunning) {
                 SettingsRow(
                     title = stringResource(R.string.bar_running_title),
                     subtitle = stringResource(R.string.bar_running_sub),
@@ -277,14 +286,29 @@ private fun HomeScreen() {
                     trailing = stringResource(R.string.start),
                     showArrow = true,
                     onClick = {
-                        if (!ready) return@SettingsRow
+                        if (!ready) {
+                            when {
+                                !overlay -> PermissionHelper.openOverlaySettings(context)
+                                clickBackend == ClickBackend.ACCESSIBILITY && !a11y ->
+                                    PermissionHelper.openAccessibilitySettings(context)
+                                clickBackend == ClickBackend.ROOT && rootStatus != RootStatus.AUTHORIZED && !rootBusy ->
+                                    RootClickBackend.requestAccess(context)
+                            }
+                            return@SettingsRow
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                            != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
                         pickType = true
                     }
                 )
             }
         }
 
-        if (pickType && ready && !OverlayService.isRunning) {
+        if (pickType && ready && !overlayRunning) {
             Spacer(Modifier.height(12.dp))
             SectionLabel(stringResource(R.string.section_start_type))
             SettingsCard {

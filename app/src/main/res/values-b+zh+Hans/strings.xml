@@ -146,4 +146,8 @@
     <string name="err_root_denied">Root 授权被拒绝</string>
     <string name="err_root_inject">Root 点击失败</string>
     <string name="err_root_disconnected">Root 连接已中断</string>
+    <string name="params_swipe_duration">滑动时长(ms)</string>
+    <string name="action_delete_node">删除此点</string>
+    <string name="toast_scheme_deleted">已删除“%1$s”</string>
 </resources>
+

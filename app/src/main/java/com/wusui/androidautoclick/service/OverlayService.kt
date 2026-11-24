@@ -5,10 +5,10 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.Color
-import android.hardware.display.DisplayManager
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -16,12 +16,14 @@ import android.os.Looper
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.animation.DecelerateInterpolator
-import android.view.animation.AccelerateInterpolator
+import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -32,22 +34,27 @@ import android.widget.Toast
 import androidx.core.app.ServiceCompat
 import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
+import com.wusui.androidautoclick.engine.ClickEngine
+import com.wusui.androidautoclick.engine.NodeKind
+import com.wusui.androidautoclick.engine.SessionType
+import com.wusui.androidautoclick.engine.TouchNode
 import com.wusui.androidautoclick.i18n.LocaleHelper
 import com.wusui.androidautoclick.overlay.LayoutOffset
 import com.wusui.androidautoclick.overlay.OverlayGeometry
 import com.wusui.androidautoclick.overlay.ScreenMetrics
 import com.wusui.androidautoclick.root.RootClickBackend
-import com.wusui.androidautoclick.engine.ClickEngine
-import com.wusui.androidautoclick.engine.NodeKind
-import com.wusui.androidautoclick.engine.SessionType
-import com.wusui.androidautoclick.engine.TouchNode
 import com.wusui.androidautoclick.ui.FlatIconView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -58,8 +65,10 @@ import kotlin.math.abs
 class OverlayService : Service() {
 
     companion object {
-        @Volatile var isRunning = false
-            private set
+        private val _running = MutableStateFlow(false)
+        val runningFlow: StateFlow<Boolean> = _running.asStateFlow()
+        val isRunning: Boolean get() = _running.value
+
         const val ACTION_SHOW = "show"
         const val ACTION_HIDE = "hide"
         const val EXTRA_TYPE = "session_type"
@@ -114,22 +123,37 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        isRunning = true
+        _running.value = true
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         rememberScreen()
         displayManager?.registerDisplayListener(displayListener, mainHandler)
         startFg()
+        // Only refresh markers when nodes, deleteMode, or running-lock state actually change —
+        // NOT on every ClickEngine totalActions/currentOrder tick during playback.
         observeJob = scope?.launch {
             combine(
                 AppStore.nodes,
                 AppStore.deleteMode,
+                ClickEngine.status.map { it.running }.distinctUntilChanged()
+            ) { _, _, _ -> }
+                .collect {
+                    if (!draggingMarker) {
+                        markersDirty = false
+                        refreshMarkers()
+                    } else {
+                        markersDirty = true
+                    }
+                }
+        }
+        scope?.launch {
+            combine(
+                AppStore.deleteMode,
                 AppStore.barVertical,
                 AppStore.barSize,
                 ClickEngine.status
-            ) { _, _, _, _, _ -> }
+            ) { _, _, _, _ -> }
                 .collect {
-                    markersDirty = true
                     rebuildBarIfNeeded()
                     toastEngineError()
                 }
@@ -188,6 +212,7 @@ class OverlayService : Service() {
         dismissPopup()
         markersDirty = true
         if (!draggingMarker) {
+            markersDirty = false
             refreshMarkers()
         }
         val outside = OverlayGeometry.countPointsOutside(
@@ -329,14 +354,23 @@ class OverlayService : Service() {
         stopSelf()
     }
 
-    private fun baseLp(w: Int, h: Int, focusable: Boolean = false): WindowManager.LayoutParams {
-        val flags = if (focusable) {
+    private fun baseLp(
+        w: Int,
+        h: Int,
+        focusable: Boolean = false,
+        watchOutside: Boolean = false
+    ): WindowManager.LayoutParams {
+        var flags = if (focusable) {
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         } else {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        }
+        if (watchOutside) {
+            flags = flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
         }
         return WindowManager.LayoutParams(
             w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags, PixelFormat.TRANSLUCENT
@@ -462,7 +496,6 @@ class OverlayService : Service() {
         val scale = when (sizeIdx) { 0 -> 0.82f; 2 -> 1.22f; else -> 1f }
         fun sdp(v: Int) = (dp(v) * scale).toInt().coerceAtLeast(1)
 
-        val (sw, sh) = screenSize()
         if (!barCenterInited) {
             barCenterX = dp(12) + dp(120).toFloat()
             barCenterY = dp(140) + dp(28).toFloat()
@@ -519,12 +552,10 @@ class OverlayService : Service() {
                     iconBtn(FlatIconView.Kind.PLUS, s(R.string.action_add_point)) {
                         val (cw, ch) = screenSize()
                         AppStore.addClickPoint(cw / 2f, ch / 2f)
-                        markersDirty = true
                     }
                     iconBtn(FlatIconView.Kind.DRAG, s(R.string.action_drag)) {
                         val (cw, ch) = screenSize()
                         AppStore.addDragGroup(cw * 0.35f, ch / 2f, cw * 0.65f, ch / 2f)
-                        markersDirty = true
                     }
                     iconBtn(
                         FlatIconView.Kind.DELETE,
@@ -544,12 +575,10 @@ class OverlayService : Service() {
                         ClickEngine.toggleRecording()
                         toastEngineError()
                         rebuildBar(animated = false)
-                        markersDirty = true
                     }
                     iconBtn(FlatIconView.Kind.PLUS, s(R.string.action_add_point)) {
                         val (cw, ch) = screenSize()
                         AppStore.addClickPoint(cw / 2f, ch / 2f)
-                        markersDirty = true
                     }
                 }
                 SessionType.SINGLE -> { }
@@ -656,6 +685,7 @@ class OverlayService : Service() {
         barView?.animate()?.cancel()
         barView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
         barView = null
+        barParams = null
     }
 
     /**
@@ -752,23 +782,26 @@ class OverlayService : Service() {
         }
     }
 
-    private fun dispatchChildClick(root: View, rawX: Float, rawY: Float): Boolean {
-        if (root !is android.view.ViewGroup) return false
-        val loc = IntArray(2)
-        for (i in 0 until root.childCount) {
-            val c = root.getChildAt(i)
-            if (!c.isShown) continue
-            c.getLocationOnScreen(loc)
-            if (rawX >= loc[0] && rawX < loc[0] + c.width &&
-                rawY >= loc[1] && rawY < loc[1] + c.height
-            ) {
-                if (c.hasOnClickListeners()) {
-                    c.performClick(); return true
-                }
-                if (c is android.view.ViewGroup && dispatchChildClick(c, rawX, rawY)) return true
+    /** Popup container that dismisses cleanly on Back key or outside tap. */
+    private class PopupHost(
+        context: android.content.Context,
+        private val onDismiss: () -> Unit
+    ) : FrameLayout(context) {
+        override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+            if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                onDismiss()
+                return true
             }
+            return super.dispatchKeyEvent(event)
         }
-        return false
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                onDismiss()
+                return true
+            }
+            return super.onTouchEvent(event)
+        }
     }
 
     // ── Markers ────────────────────────────────────────────────
@@ -776,6 +809,7 @@ class OverlayService : Service() {
     private fun clearMarkers() {
         markers.values.forEach { try { windowManager.removeView(it.first) } catch (_: Exception) {} }
         markers.clear()
+        draggingMarker = false
     }
 
     private fun refreshMarkers() {
@@ -796,14 +830,15 @@ class OverlayService : Service() {
 
     private fun addMarker(node: TouchNode) {
         val size = dp(44)
-        val locked = ClickEngine.status.value.running && !AppStore.deleteMode.value
+        val deleteMode = AppStore.deleteMode.value
+        val locked = ClickEngine.status.value.running && !deleteMode
 
         val wrap = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.TRANSPARENT)
-                setStroke(dp(3), Color.WHITE)
+                setColor(if (deleteMode) Color.parseColor("#33FF3B30") else Color.TRANSPARENT)
+                setStroke(dp(3), if (deleteMode) Color.parseColor("#FF3B30") else Color.WHITE)
             }
             alpha = MARKER_ALPHA
             addView(TextView(this@OverlayService).apply {
@@ -822,7 +857,7 @@ class OverlayService : Service() {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(Color.TRANSPARENT)
-                    setStroke(dp(2), Color.BLACK)
+                    setStroke(dp(2), if (deleteMode) Color.parseColor("#FF3B30") else Color.BLACK)
                 }
             })
         }
@@ -860,6 +895,7 @@ class OverlayService : Service() {
             var longFired = false
             val longRun = Runnable {
                 longFired = true
+                wrap.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                 showNodePopup(node)
             }
             // Use DragShell-style: handle on the wrap via listener after making it the touch target
@@ -910,6 +946,7 @@ class OverlayService : Service() {
                         val dx = e.rawX - tx
                         val dy = e.rawY - ty
                         val shouldCommit = OverlayGeometry.exceededSlop(dx, dy, commitSlop)
+                        val liveNode = AppStore.nodes.value.find { it.id == node.id } ?: node
                         if (shouldCommit) {
                             // Prefer DOWN screen position + finger delta, not
                             // params + a possibly stale layoutOffset, and not
@@ -917,7 +954,7 @@ class OverlayService : Service() {
                             val start = if (downLocUsable) {
                                 OverlayGeometry.screenFromLocation(downLocX, downLocY, half)
                             } else {
-                                node.x to node.y
+                                liveNode.x to liveNode.y
                             }
                             val saved = if (downLocUsable) {
                                 OverlayGeometry.committedScreenCenter(downLocX, downLocY, half, dx, dy)
@@ -928,10 +965,10 @@ class OverlayService : Service() {
                             if (OverlayGeometry.isPlausibleMarkerCommit(
                                     saved.first, saved.second,
                                     start.first, start.second,
-                                    node.x, node.y, sw, sh
+                                    liveNode.x, liveNode.y, sw, sh
                                 )
                             ) {
-                                AppStore.moveNode(node.id, saved.first, saved.second)
+                                AppStore.moveNode(liveNode.id, saved.first, saved.second)
                             } else if (params.x != ix || params.y != iy) {
                                 params.x = ix
                                 params.y = iy
@@ -949,8 +986,7 @@ class OverlayService : Service() {
                         // jumped ↑N after 3.0.10.
                         // Tap: delete-mode only. A short tap must not relocate the point.
                         if (!shouldCommit && !longFired && AppStore.deleteMode.value) {
-                            AppStore.removeNodeOrGroup(node.id)
-                            markersDirty = true
+                            AppStore.removeNodeOrGroup(liveNode.id)
                             rebuildBar()
                         }
                         true
@@ -1027,7 +1063,7 @@ class OverlayService : Service() {
             View.MeasureSpec.makeMeasureSpec(layout.maxHeight, View.MeasureSpec.AT_MOST)
         )
         val contentHeight = card.measuredHeight.coerceAtLeast(1).coerceAtMost(layout.maxHeight)
-        val content: View = if (card.measuredHeight > layout.maxHeight) {
+        val inner: View = if (card.measuredHeight > layout.maxHeight) {
             ScrollView(this).apply {
                 isVerticalScrollBarEnabled = true
                 addView(
@@ -1041,13 +1077,22 @@ class OverlayService : Service() {
         } else {
             card
         }
-        val lp = baseLp(layout.width, contentHeight, focusable = true).apply {
+        val host = PopupHost(this) { dismissPopup() }.apply {
+            addView(
+                inner,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+        val lp = baseLp(layout.width, contentHeight, focusable = true, watchOutside = true).apply {
             x = layout.x
             y = layout.y
         }
         try {
-            windowManager.addView(content, lp)
-            popupView = content
+            windowManager.addView(host, lp)
+            popupView = host
         } catch (_: Exception) {
             toast(s(R.string.toast_popup_fail, title))
         }
@@ -1125,6 +1170,20 @@ class OverlayService : Service() {
                     toast(s(R.string.toast_node_updated, live.order))
                 }
             })
+            if (AppStore.sessionType.value != SessionType.SINGLE) {
+                addView(TextView(this@OverlayService).apply {
+                    text = s(R.string.action_delete_node)
+                    gravity = Gravity.CENTER
+                    setTextColor(Color.parseColor("#FF3B30"))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                    setPadding(0, dp(12), 0, 0)
+                    setOnClickListener {
+                        AppStore.removeNodeOrGroup(live.id)
+                        dismissPopup()
+                        rebuildBar()
+                    }
+                })
+            }
         }
     }
 
@@ -1133,13 +1192,15 @@ class OverlayService : Service() {
         showPanel(s(R.string.params_title)) {
             val (r1, etCycles) = fieldRow(
                 s(R.string.params_cycles),
-                if (p.cycleCount < 0) "" else p.cycleCount.toString()
+                if (p.cycleCount <= 0) "" else p.cycleCount.toString()
             )
             addView(r1)
             val (r2, etStop) = fieldRow(s(R.string.params_stop_after), p.stopAfterMs.toString())
             addView(r2)
             val (r3, etTap) = fieldRow(s(R.string.params_global_tap), p.tapDurationMs.toString())
             addView(r3)
+            val (r4, etSwipe) = fieldRow(s(R.string.params_swipe_duration), p.swipeDurationMs.toString())
+            addView(r4)
             addView(TextView(this@OverlayService).apply {
                 text = s(R.string.params_speed_hint)
                 setTextColor(Color.parseColor("#6E6E73"))
@@ -1165,13 +1226,22 @@ class OverlayService : Service() {
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
                 setPadding(0, dp(8), 0, 0)
                 setOnClickListener {
-                    val cycles = etCycles.text.toString().let {
-                        if (it.isBlank()) -1 else it.toIntOrNull() ?: p.cycleCount
+                    val cycles = etCycles.text.toString().let { raw ->
+                        if (raw.isBlank()) -1
+                        else (raw.toIntOrNull() ?: p.cycleCount).let { if (it <= 0) -1 else it }
                     }
                     val stop = etStop.text.toString().toLongOrNull()?.coerceAtLeast(0) ?: p.stopAfterMs
                     val tap = etTap.text.toString().toLongOrNull()?.coerceAtLeast(1) ?: p.tapDurationMs
+                    val swipe = etSwipe.text.toString().toLongOrNull()?.coerceIn(1L, 60_000L)
+                        ?: p.swipeDurationMs
                     AppStore.setParams(
-                        p.copy(cycleCount = cycles, stopAfterMs = stop, jitter = jitter, tapDurationMs = tap)
+                        p.copy(
+                            cycleCount = cycles,
+                            stopAfterMs = stop,
+                            jitter = jitter,
+                            tapDurationMs = tap,
+                            swipeDurationMs = swipe
+                        )
                     )
                     dismissPopup()
                     toast(s(R.string.toast_params_applied, tap))
@@ -1214,8 +1284,13 @@ class OverlayService : Service() {
         }
         showPanel(s(R.string.use_scheme_title)) {
             names.forEach { name ->
-                val scheme = AppStore.schemes.value[name]!!
-                addView(TextView(this@OverlayService).apply {
+                val scheme = AppStore.schemes.value[name] ?: return@forEach
+                val row = LinearLayout(this@OverlayService).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(4), 0, dp(4))
+                }
+                row.addView(TextView(this@OverlayService).apply {
                     text = s(
                         R.string.scheme_item,
                         name,
@@ -1223,15 +1298,32 @@ class OverlayService : Service() {
                         scheme.nodes.size
                     )
                     setTextColor(Color.parseColor("#1D1D1F"))
-                    setPadding(0, dp(10), 0, dp(10))
+                    setPadding(0, dp(8), dp(8), dp(8))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
+                        if (ClickEngine.status.value.running) ClickEngine.stop()
+                        if (ClickEngine.status.value.recording) ClickEngine.stopRecording()
                         AppStore.useScheme(name)
                         dismissPopup()
-                        markersDirty = true
                         rebuildBar()
                         toast(s(R.string.toast_loaded, name))
                     }
                 })
+                row.addView(TextView(this@OverlayService).apply {
+                    text = "×"
+                    gravity = Gravity.CENTER
+                    setTextColor(Color.parseColor("#FF3B30"))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                    typeface = Typeface.DEFAULT_BOLD
+                    setPadding(dp(10), dp(6), dp(6), dp(6))
+                    setOnClickListener {
+                        AppStore.deleteScheme(name)
+                        toast(s(R.string.toast_scheme_deleted, name))
+                        if (AppStore.schemes.value.isEmpty()) dismissPopup()
+                        else showUseScheme()
+                    }
+                })
+                addView(row)
             }
         }
     }
@@ -1258,7 +1350,7 @@ class OverlayService : Service() {
         removeBar()
         clearMarkers()
         mainHandler.removeCallbacksAndMessages(null)
-        isRunning = false
+        _running.value = false
         super.onDestroy()
     }
 }

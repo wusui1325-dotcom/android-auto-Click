@@ -6,6 +6,7 @@ import android.os.SystemClock
 import com.wusui.androidautoclick.R
 import com.wusui.androidautoclick.data.AppStore
 import com.wusui.androidautoclick.i18n.LocaleHelper
+import com.wusui.androidautoclick.overlay.ScreenMetrics
 import com.wusui.androidautoclick.root.RootClickBackend
 import com.wusui.androidautoclick.root.RootStatus
 import com.wusui.androidautoclick.service.ClickAccessibilityService
@@ -101,7 +102,10 @@ object ClickEngine {
                 main.post {
                     if (gen != generation || !_status.value.running) return@post
                     when (st) {
-                        RootStatus.AUTHORIZED -> tick(gen)
+                        RootStatus.AUTHORIZED -> {
+                            if (arm > 0) main.postDelayed({ if (gen == generation) tick(gen) }, arm)
+                            else tick(gen)
+                        }
                         RootStatus.NOT_DETECTED -> {
                             setError(msg(R.string.err_root_missing)); stop()
                         }
@@ -232,6 +236,7 @@ object ClickEngine {
         playIndex++
         // After last play item, next-cycle wait = last ordered touch node's intervalToNextMs
         val wrapping = playIndex >= items.size
+        val isFinalAction = wrapping && params.cycleCount > 0 && (cycleIndex + 1) >= params.cycleCount
         val gapAfter = if (wrapping) {
             AppStore.orderedNodes().lastOrNull()?.intervalToNextMs ?: item.node.intervalToNextMs
         } else {
@@ -252,15 +257,15 @@ object ClickEngine {
                 injectSwipe(x1, y1, x2, y2, params.swipeDurationMs) { outcome ->
                     if (gen != generation) return@injectSwipe
                     if (!applyOutcome(outcome, bump = true)) return@injectSwipe
-                    scheduleAfter(gen, gapAfter)
+                    if (isFinalAction) stop() else scheduleAfter(gen, gapAfter)
                 }
             }
             item.node.kind == NodeKind.DRAG_START -> {
                 // Unpaired start (missing END): skip, do not play it as a tap.
-                scheduleAfter(gen, gapAfter)
+                if (isFinalAction) stop() else scheduleAfter(gen, gapAfter)
             }
             else -> {
-                runClicks(gen, item.node, params, 0, gapAfter)
+                runClicks(gen, item.node, params, 0, gapAfter, isFinalAction)
             }
         }
     }
@@ -270,11 +275,12 @@ object ClickEngine {
         node: TouchNode,
         params: GlobalParams,
         done: Int,
-        gapAfter: Long
+        gapAfter: Long,
+        stopWhenDone: Boolean
     ) {
         if (gen != generation || !_status.value.running) return
         if (done >= node.clickCount.coerceAtLeast(1)) {
-            scheduleAfter(gen, gapAfter)
+            if (stopWhenDone) stop() else scheduleAfter(gen, gapAfter)
             return
         }
         val (x, y) = jitter(node.x, node.y, params)
@@ -283,7 +289,7 @@ object ClickEngine {
             if (!applyOutcome(outcome, bump = true)) return@injectClick
             // No extra delay: injectors are strictly serial.
             // Next tap / interval waits only for completion + gapAfter.
-            runClicks(gen, node, params, done + 1, gapAfter)
+            runClicks(gen, node, params, done + 1, gapAfter, stopWhenDone)
         }
     }
 
@@ -327,7 +333,9 @@ object ClickEngine {
     private fun scheduleAfter(gen: Int, gap: Long) {
         if (gen != generation || !_status.value.running) return
         val wait = gap.coerceAtLeast(0)
-        if (wait == 0L) tick(gen)
+        // Always post onto the main Looper (never recurse synchronously into tick)
+        // so 0ms gaps cannot stack-overflow or starve touch events for the Stop button.
+        if (wait == 0L) main.post { tick(gen) }
         else main.postDelayed({ tick(gen) }, wait)
     }
 
@@ -371,7 +379,19 @@ object ClickEngine {
 
     private fun jitter(x: Float, y: Float, params: GlobalParams): Pair<Float, Float> {
         if (!params.jitter) return x to y
-        return (x + Random.nextInt(-8, 9)) to (y + Random.nextInt(-8, 9))
+        val jx = x + Random.nextInt(-8, 9)
+        val jy = y + Random.nextInt(-8, 9)
+        val ctx = AppStore.appContext
+        if (ctx != null) {
+            try {
+                val (sw, sh) = ScreenMetrics.realSize(ctx)
+                val maxX = (sw - 1).coerceAtLeast(0).toFloat()
+                val maxY = (sh - 1).coerceAtLeast(0).toFloat()
+                return jx.coerceIn(0f, maxX) to jy.coerceIn(0f, maxY)
+            } catch (_: Exception) {
+            }
+        }
+        return jx.coerceAtLeast(0f) to jy.coerceAtLeast(0f)
     }
 
     private fun setError(msg: String) {

@@ -146,4 +146,8 @@
     <string name="err_root_denied">Root authorization was denied</string>
     <string name="err_root_inject">Root click failed</string>
     <string name="err_root_disconnected">Root connection was lost</string>
+    <string name="params_swipe_duration">Swipe duration (ms)</string>
+    <string name="action_delete_node">Delete point</string>
+    <string name="toast_scheme_deleted">Deleted “%1$s”</string>
 </resources>
+

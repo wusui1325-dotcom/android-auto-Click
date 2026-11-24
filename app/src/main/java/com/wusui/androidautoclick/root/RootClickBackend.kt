@@ -90,6 +90,12 @@ object RootClickBackend {
         val rotation: Int
     )
 
+    private fun isErrReply(reply: String?): Boolean {
+        if (reply == null) return true
+        val t = reply.trim()
+        return t == "ERR" || t.startsWith("ERR ")
+    }
+
     fun isReady(): Boolean = synchronized(sessionLock) { isReadyLocked() }
 
     /** Re-scan su without prompting. Does not drop a live authorized session. */
@@ -339,7 +345,7 @@ object RootClickBackend {
             else -> return false
         }
         val reply = su.sendAndWait(shellCmd, timeoutMs) ?: return false
-        return reply != "ERR" && !reply.startsWith("ERR ")
+        return !isErrReply(reply)
     }
 
     private fun ensureSession(context: Context, timeoutMs: Long): RootStatus {
@@ -389,10 +395,11 @@ object RootClickBackend {
 
     private fun startUinputHelper(auth: LineSession, helperFile: File, state: DisplayState): Boolean {
         val local = helperFile.absolutePath
-        auth.sendAndWait("cp '$local' '$HELPER_REMOTE'", 8_000) ?: return false
-        auth.sendAndWait("chmod 700 '$HELPER_REMOTE'", 8_000) ?: return false
+        val cpRes = auth.sendAndWait("cp '$local' '$HELPER_REMOTE.tmp' && mv -f '$HELPER_REMOTE.tmp' '$HELPER_REMOTE'", 8_000)
+        val remoteReady = !isErrReply(cpRes) &&
+            !isErrReply(auth.sendAndWait("chmod 700 '$HELPER_REMOTE'", 8_000))
         val suPath = detectedSu ?: "su"
-        val commandCandidates = listOf(HELPER_REMOTE, local)
+        val commandCandidates = if (remoteReady) listOf(HELPER_REMOTE, local) else listOf(local)
         for (cmd in commandCandidates) {
             val proc = try {
                 // Keep stderr separate from the OK/ERR line protocol.
@@ -426,7 +433,7 @@ object RootClickBackend {
         val probe = auth.sendAndWait("command -v input || which input", 8_000) ?: return false
         return probe != "TIMEOUT" &&
             !probe.contains("not found", ignoreCase = true) &&
-            !probe.startsWith("ERR ")
+            !isErrReply(probe)
     }
 
     private fun openSu(suPath: String, timeoutMs: Long): LineSession? {
@@ -452,11 +459,22 @@ object RootClickBackend {
             val asset = "$HELPER_ASSET_PREFIX/$abi/root_uinput"
             try {
                 context.assets.open(asset).use { input ->
+                    val tmp = File(context.codeCacheDir, "root_uinput.tmp")
                     val out = File(context.codeCacheDir, "root_uinput")
-                    out.outputStream().use { input.copyTo(it) }
-                    out.setReadable(true, false)
-                    out.setExecutable(true, false)
-                    if (out.length() > 0) return out
+                    tmp.outputStream().use { input.copyTo(it) }
+                    tmp.setReadable(true, false)
+                    tmp.setExecutable(true, false)
+                    if (tmp.length() > 0) {
+                        if (tmp.renameTo(out)) return out
+                        // Fallback if rename fails on some filesystems
+                        tmp.copyTo(out, overwrite = true)
+                        tmp.delete()
+                        out.setReadable(true, false)
+                        out.setExecutable(true, false)
+                        if (out.length() > 0) return out
+                    } else {
+                        tmp.delete()
+                    }
                 }
             } catch (_: Exception) {
             }
@@ -480,7 +498,7 @@ object RootClickBackend {
         if (cached != null) {
             if (cached == "su") return cached
             val f = File(cached)
-            if (f.exists() || f.canExecute()) return cached
+            if (f.exists() && f.canExecute()) return cached
         }
         val paths = listOf(
             "/system/bin/su",

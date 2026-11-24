@@ -49,12 +49,23 @@ class GestureDispatcher {
         durationMs: Long,
         onDone: (InjectOutcome) -> Unit
     ) {
+        if (!x.isFinite() || !y.isFinite()) {
+            onDone(InjectOutcome.FAILED)
+            return
+        }
+        val safeX = x.coerceAtLeast(0f)
+        val safeY = y.coerceAtLeast(0f)
         val max = GestureDescription.getMaxGestureDuration()
         // API: stroke duration must be > 0 and ≤ max. No TapTimeout requirement.
         val dur = durationMs.coerceIn(1L, max)
-        val path = Path().apply { moveTo(x, y) }
-        val stroke = GestureDescription.StrokeDescription(path, 0, dur)
-        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        val gesture = try {
+            val path = Path().apply { moveTo(safeX, safeY) }
+            val stroke = GestureDescription.StrokeDescription(path, 0, dur)
+            GestureDescription.Builder().addStroke(stroke).build()
+        } catch (_: Exception) {
+            onDone(InjectOutcome.FAILED)
+            return
+        }
         enqueue(service, gesture, onDone)
     }
 
@@ -67,14 +78,27 @@ class GestureDispatcher {
         durationMs: Long,
         onDone: (InjectOutcome) -> Unit
     ) {
+        if (!x1.isFinite() || !y1.isFinite() || !x2.isFinite() || !y2.isFinite()) {
+            onDone(InjectOutcome.FAILED)
+            return
+        }
+        val sx1 = x1.coerceAtLeast(0f)
+        val sy1 = y1.coerceAtLeast(0f)
+        val sx2 = x2.coerceAtLeast(0f)
+        val sy2 = y2.coerceAtLeast(0f)
         val max = GestureDescription.getMaxGestureDuration()
         val dur = durationMs.coerceIn(1L, max)
-        val path = Path().apply {
-            moveTo(x1, y1)
-            lineTo(x2, y2)
+        val gesture = try {
+            val path = Path().apply {
+                moveTo(sx1, sy1)
+                lineTo(sx2, sy2)
+            }
+            val stroke = GestureDescription.StrokeDescription(path, 0, dur)
+            GestureDescription.Builder().addStroke(stroke).build()
+        } catch (_: Exception) {
+            onDone(InjectOutcome.FAILED)
+            return
         }
-        val stroke = GestureDescription.StrokeDescription(path, 0, dur)
-        val gesture = GestureDescription.Builder().addStroke(stroke).build()
         enqueue(service, gesture, onDone)
     }
 

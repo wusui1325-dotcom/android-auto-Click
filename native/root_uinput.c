@@ -40,6 +40,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
+#include <time.h>
 
 #ifndef EVIOCGMTSLOTS
 #define EVIOCGMTSLOTS(len) _IOC(_IOC_READ, 'E', 0x0a, len)
@@ -88,6 +89,15 @@ static int ev_p_min = 0, ev_p_max = 255;
 static int ev_have_btn_touch = 0;
 static int uinput_ready = 0;
 
+static void sleep_us(long long us) {
+    if (us <= 0) return;
+    struct timespec req;
+    req.tv_sec = (time_t)(us / 1000000LL);
+    req.tv_nsec = (long)((us % 1000000LL) * 1000LL);
+    while (nanosleep(&req, &req) == -1 && errno == EINTR) {
+    }
+}
+
 static int clampi(int v, int lo, int hi) {
     if (v < lo) return lo;
     if (v > hi) return hi;
@@ -105,7 +115,7 @@ static int write_ev(int fd, int type, int code, int val, int retry) {
     if (n == (ssize_t)sizeof(ev)) return 1;
     if (!retry) return 0;
     for (int i = 0; i < FIRST_INJECT_RETRIES; i++) {
-        usleep(FIRST_INJECT_SLEEP_US);
+        sleep_us(FIRST_INJECT_SLEEP_US);
         n = write(fd, &ev, sizeof(ev));
         if (n == (ssize_t)sizeof(ev)) return 1;
     }
@@ -393,7 +403,7 @@ static int score_touchscreen(int fd, const char *name, int *out_slot_max) {
 }
 
 static void apply_evdev_abs(int fd, int slot_max) {
-    struct input_absinfo ax, ay, ap, keyprobe;
+    struct input_absinfo ax, ay, ap;
     memset(&ax, 0, sizeof(ax));
     memset(&ay, 0, sizeof(ay));
     ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &ax);
@@ -432,7 +442,6 @@ static void apply_evdev_abs(int fd, int slot_max) {
             ev_have_btn_touch = 1;
         }
     }
-    (void)keyprobe;
 }
 
 static int open_real_touchscreen(void) {
@@ -632,7 +641,7 @@ static void do_tap(int x, int y, int duration_ms) {
         reply_err("write");
         return;
     }
-    usleep((useconds_t)duration_ms * 1000U);
+    sleep_us((long long)duration_ms * 1000LL);
     up();
     reply_ok(NULL);
 }
@@ -653,7 +662,7 @@ static void do_swipe(int x1, int y1, int x2, int y2, int duration_ms) {
         int x = x1 + (int)((long long)(x2 - x1) * i / steps);
         int y = y1 + (int)((long long)(y2 - y1) * i / steps);
         move_to(x, y);
-        usleep((useconds_t)step_us);
+        sleep_us((long long)step_us);
     }
     up();
     reply_ok(NULL);

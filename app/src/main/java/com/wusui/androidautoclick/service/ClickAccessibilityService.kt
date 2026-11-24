@@ -41,6 +41,8 @@ class ClickAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (!ClickEngine.status.value.recording) return
+        // Ignore clicks on AutoClick's own overlay bar / popups during recording.
+        if (event.packageName?.toString() == packageName) return
         val type = event.eventType
         if (type != AccessibilityEvent.TYPE_VIEW_CLICKED &&
             type != AccessibilityEvent.TYPE_VIEW_LONG_CLICKED
